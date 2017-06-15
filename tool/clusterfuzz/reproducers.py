@@ -325,8 +325,9 @@ class BaseReproducer(object):
             'that might help you move faster:\n'
             '- In case of fixing the crash, you can use `--current` to run on '
             'tip-of-tree (or, in other words, avoid git-checkout).\n'
-            '- You can save time by using `--disable-gclient` to avoid '
-            '`gclient sync` and `gclient runhooks` in subsequential runs.',
+            '- You can save time by using `--skip-deps` to avoid '
+            '`gclient sync`, `gclient runhooks`, and other dependency '
+            'installations in subsequential runs.',
             common.BASH_GREEN_MARKER))
         return True
       else:
