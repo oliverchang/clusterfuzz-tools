@@ -44,12 +44,14 @@
         state: present
         regexp: 'RELEASE="([a-z])\w+"'
         line: 'RELEASE="{{ release }}"'
-    - name: Set python unbuffered environment variable
-      lineinfile:
-        dest: /etc/environment
-        state: present
-        regexp: 'PYTHONUNBUFFERED="1"'
-        line: 'PYTHONUNBUFFERED="1"'
+    - name: Disable Python optimization because speed is not important.
+      lineinfile: dest=/etc/environment
+                  state=present
+                  regexp="{{item}}"
+                  line="{{item}}"
+      with_items:
+        - 'PYTHONUNBUFFERED=1'
+        - 'PYTHONDONTWRITEBYTECODE=1'
 
 
 - name: Prepare the daemon binary

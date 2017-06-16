@@ -1,2 +1,2 @@
 #!/bin/sh
-exec chpst -u clusterfuzz svlogd -tt /var/log/python-daemon
+exec chpst -u clusterfuzz svlogd -tt -l 0 -b 0 /var/log/python-daemon
