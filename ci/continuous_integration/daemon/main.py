@@ -31,7 +31,7 @@ SANITY_CHECKS = '/python-daemon/daemon/sanity_checks.yml'
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
 TESTCASE_CACHE = LRUCacheDict(max_size=1000, expiration=172800)
-PREVIEW_LOG_BYTE_COUNT = 100000
+MAX_PREVIEW_LOG_BYTE_COUNT = 100000
 
 # The number of seconds to sleep after each test run to avoid DDOS.
 SLEEP_TIME = 30
@@ -188,13 +188,18 @@ def prepare_binary_and_get_version(release):
     return get_binary_version()
 
 
-def read_logs():
-  """Read the last 100 of logs."""
-  with open(CLUSTERFUZZ_LOG_PATH, 'r') as f:
+def read_logs(path=CLUSTERFUZZ_LOG_PATH):
+  """Read the logs."""
+  if not os.path.exists(path):
+    return "%s doesn't exist." % path
+
+  preview_byte_count = min(MAX_PREVIEW_LOG_BYTE_COUNT, os.path.getsize(path))
+
+  with open(path, 'r') as f:
     # Jump to the 100,000 bytes from the end.
-    f.seek(-PREVIEW_LOG_BYTE_COUNT, 2)
+    f.seek(-preview_byte_count, 2)
     return '--- The last %d bytes of the log file ---\n%s' % (
-        PREVIEW_LOG_BYTE_COUNT, f.read())
+        preview_byte_count, f.read())
 
 
 def reset_and_run_testcase(testcase_id, category, release):

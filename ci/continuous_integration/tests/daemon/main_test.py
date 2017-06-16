@@ -16,6 +16,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import yaml
 
 import mock
@@ -355,17 +356,36 @@ class ReadLogsTest(helpers.ExtendedTestCase):
   """Test read_logs."""
 
   def setUp(self):
-    self.setup_fake_filesystem()
+    # We can't use pyfakefs. Because pyfakefs' f.seek() results in a
+    # different behaviour. See:
+    # https://github.com/google/clusterfuzz-tools/issues/367
+    self.tempfile = tempfile.NamedTemporaryFile(delete=False)
+    self.tempfile.close()
+
+  def tearDown(self):
+    os.remove(self.tempfile.name)
+
+  def test_file_not_exist(self):
+    """Test file not exist."""
+    self.another_tempfile = tempfile.NamedTemporaryFile(delete=True)
+    self.another_tempfile.close()
+    self.assertEqual(
+        "%s doesn't exist." % self.another_tempfile.name,
+        main.read_logs(self.another_tempfile.name))
 
   def test_small_file(self):
     """Test small file."""
-    self.fs.CreateFile(main.CLUSTERFUZZ_LOG_PATH, contents='some logs')
-    self.assertIn('some logs', main.read_logs())
+    with open(self.tempfile.name, 'w') as f:
+      f.write('some logs')
+    self.assertIn('some logs', main.read_logs(self.tempfile.name))
 
   def test_large_file(self):
-    """Test small file."""
-    self.fs.CreateFile(
-        main.CLUSTERFUZZ_LOG_PATH,
-        contents='a' * (main.PREVIEW_LOG_BYTE_COUNT + 10))
-    self.assertIn('a' * main.PREVIEW_LOG_BYTE_COUNT, main.read_logs())
-    self.assertNotIn('a' * (main.PREVIEW_LOG_BYTE_COUNT + 10), main.read_logs())
+    """Test previewing a large file."""
+    with open(self.tempfile.name, 'w') as f:
+      f.write('a' * (main.MAX_PREVIEW_LOG_BYTE_COUNT + 10))
+    self.assertIn(
+        'a' * main.MAX_PREVIEW_LOG_BYTE_COUNT,
+        main.read_logs(self.tempfile.name))
+    self.assertNotIn(
+        'a' * (main.MAX_PREVIEW_LOG_BYTE_COUNT + 1),
+        main.read_logs(self.tempfile.name))
