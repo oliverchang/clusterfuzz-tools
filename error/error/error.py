@@ -163,7 +163,10 @@ class UnreproducibleError(ExpectedException):
 
   MESSAGE = (
       'The testcase cannot be reproduced after trying {count} times.\n'
-      'Here are 3 things you can try:\n'
+      'Here are things you can try:\n'
+      '- Run outside XVFB (e.g. you will be able to see the launched program '
+      'on screen.) with `--disable-xvfb`, which is especially useful for '
+      'Chrome.\n'
       '- Run with the downloaded build by adding `--build download`.\n'
       '- Run `build/install-build-deps.sh` to ensure all dependencies are '
       'installed.\n'
