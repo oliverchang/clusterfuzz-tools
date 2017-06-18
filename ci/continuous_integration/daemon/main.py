@@ -3,7 +3,6 @@
 import collections
 import os
 import shutil
-import subprocess
 import sys
 import time
 import yaml
@@ -12,10 +11,10 @@ import requests
 from requests.packages.urllib3.util import retry
 from requests import adapters
 from oauth2client.client import GoogleCredentials
-from lru import LRUCacheDict
 
-import stackdriver_logging #pylint: disable=relative-import
-import process #pylint: disable=relative-import
+from daemon import stackdriver_logging
+from daemon import process
+from error import error
 
 
 HOME = os.path.expanduser('~')
@@ -30,8 +29,12 @@ DEPOT_TOOLS = os.path.join(HOME, 'depot_tools')
 SANITY_CHECKS = '/python-daemon/daemon/sanity_checks.yml'
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
-TESTCASE_CACHE = LRUCacheDict(max_size=1000, expiration=172800)
 MAX_PREVIEW_LOG_BYTE_COUNT = 100000
+
+PROCESSED_TESTCASE_IDS = set()
+RETRIABLE_RETURN_CODES = set([
+    error.MinimizationNotFinishedError.EXIT_CODE
+])
 
 # The number of seconds to sleep after each test run to avoid DDOS.
 SLEEP_TIME = 30
@@ -69,22 +72,26 @@ def build_command(args):
 
 def run_testcase(testcase_id):
   """Attempts to reproduce a testcase."""
-  try:
-    return process.call(
-        '%s reproduce %s' % (BINARY_LOCATION, testcase_id),
-        cwd=HOME,
-        env={
-            'CF_QUIET': '1',
-            'USER': 'CI',
-            'CHROMIUM_SRC': CHROMIUM_SRC,
-            'GOMA_GCE_SERVICE_ACCOUNT': 'default',
-            'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)
-        }
-    )[0]
-  except subprocess.CalledProcessError as e:
-    return e.returncode
-  finally:
-    TESTCASE_CACHE[testcase_id] = True
+  return_code, _ = process.call(
+      '%s reproduce %s' % (BINARY_LOCATION, testcase_id),
+      cwd=HOME,
+      env={
+          'CF_QUIET': '1',
+          'USER': 'CI',
+          'CHROMIUM_SRC': CHROMIUM_SRC,
+          'GOMA_GCE_SERVICE_ACCOUNT': 'default',
+          'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)
+      },
+      raise_on_error=False
+  )
+
+  # If the return code is retriable, we don't store it in
+  # PROCESSED_TESTCASE_IDS. This means the testcase will be run again in the
+  # next batch.
+  if return_code not in RETRIABLE_RETURN_CODES:
+    PROCESSED_TESTCASE_IDS.add(testcase_id)
+
+  return return_code
 
 
 def update_auth_header():
@@ -121,33 +128,33 @@ def load_new_testcases():
     auth_header = f.read()
 
   testcases = []
-  testcase_ids = set()
+  added_testcase_ids = set()
   page = 1
   supported_jobtypes = get_supported_jobtypes()
 
-  def _is_valid(testcase):
-    """Filter by jobtype and whether it has been successfully reproduced."""
-    return (testcase['jobType'] in supported_jobtypes['chromium'] and
-            not testcase['id'] in TESTCASE_CACHE and
-            not testcase['id'] in testcase_ids)
-
-  while len(testcases) < 40:
+  while len(testcases) < 20 and page < 30:
     r = post('https://clusterfuzz.com/v2/testcases/load',
              headers={'Authorization': auth_header},
-             json={'page': page, 'reproducible': 'yes'})
+             json={'page': page, 'reproducible': 'yes',
+                   'q': 'platform:linux', 'open': 'yes'})
+    page += 1
 
-    has_valid_testcase = False
-    for testcase in r.json()['items']:
-      if not _is_valid(testcase):
+    items = r.json()['items']
+    if not items:
+      break
+
+    for testcase in items:
+      if testcase['jobType'] not in supported_jobtypes['chromium']:
+        print 'Skip %s (%s) because its job type is not supported.' % (
+            testcase['id'], testcase['jobType'])
+        continue
+
+      if (testcase['id'] in PROCESSED_TESTCASE_IDS or
+          testcase['id'] in added_testcase_ids):
         continue
 
       testcases.append(Testcase(testcase['id'], testcase['jobType']))
-      testcase_ids.add(testcase['id'])
-      has_valid_testcase = True
-
-    if not has_valid_testcase:
-      break
-    page += 1
+      added_testcase_ids.add(testcase['id'])
 
   return testcases
 

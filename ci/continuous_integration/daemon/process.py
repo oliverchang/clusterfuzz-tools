@@ -8,7 +8,7 @@ import subprocess
 LAST_PID_FILE = '/python-daemon-data/last_pid'
 
 
-def call(cmd, cwd='.', env=None, capture=False):
+def call(cmd, cwd='.', env=None, capture=False, raise_on_error=True):
   """Call invoke command with additional envs and return output."""
   env = env or {}
   env_str = ' '.join(
@@ -23,7 +23,7 @@ def call(cmd, cwd='.', env=None, capture=False):
       stdout=subprocess.PIPE if capture else None) as proc:
     out, _ = proc.communicate()
 
-    if proc.returncode != 0:
+    if proc.returncode != 0 and raise_on_error:
       raise subprocess.CalledProcessError(
           returncode=proc.returncode, cmd=cmd, output=out)
 

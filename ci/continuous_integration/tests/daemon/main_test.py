@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import os
-import subprocess
 import sys
 import tempfile
 import yaml
@@ -22,6 +21,7 @@ import yaml
 import mock
 
 from daemon import main
+from error import error
 from test_libs import helpers
 
 
@@ -68,6 +68,7 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, ['daemon.process.call'])
     self.mock_os_environment({'PATH': 'test'})
+    main.PROCESSED_TESTCASE_IDS.clear()
 
   def test_succeed(self):
     """Ensures testcases are run properly."""
@@ -83,13 +84,17 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
                 'USER': 'CI',
                 'CHROMIUM_SRC': main.CHROMIUM_SRC,
                 'PATH': 'test:%s' % main.DEPOT_TOOLS,
-                'GOMA_GCE_SERVICE_ACCOUNT': 'default'})
+                'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
+            raise_on_error=False)
     ])
+    self.assertEqual(set([1234]), main.PROCESSED_TESTCASE_IDS)
 
-  def test_fail(self):
-    """Test failing."""
-    self.mock.call.side_effect = subprocess.CalledProcessError(0, None)
-    self.assertFalse(main.run_testcase(1234))
+  def test_not_save_testcase_id(self):
+    """Test not saving testcase id."""
+    self.mock.call.return_value = (
+        error.MinimizationNotFinishedError.EXIT_CODE, None)
+    self.assertEqual(
+        error.MinimizationNotFinishedError.EXIT_CODE, main.run_testcase(1234))
 
     self.assert_exact_calls(self.mock.call, [
         mock.call(
@@ -100,8 +105,10 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
                 'USER': 'CI',
                 'CHROMIUM_SRC': main.CHROMIUM_SRC,
                 'PATH': 'test:%s' % main.DEPOT_TOOLS,
-                'GOMA_GCE_SERVICE_ACCOUNT': 'default'})
+                'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
+            raise_on_error=False)
     ])
+    self.assertEqual(0, len(main.PROCESSED_TESTCASE_IDS))
 
 
 class LoadSanityCheckTestcasesTest(helpers.ExtendedTestCase):
@@ -192,21 +199,25 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
     self.mock.randint.return_value = 6
     self.mock.get_supported_jobtypes.return_value = {'chromium': [
         'supported', 'support']}
+    main.PROCESSED_TESTCASE_IDS.clear()
 
   def test_get_testcase(self):
     """Tests get testcase."""
     resp = mock.Mock()
-    resp.json.return_value = {
-        'items': [
-            {'jobType': 'supported', 'id': 12345},
-            {'jobType': 'unsupported', 'id': 98765},
-            {'jobType': 'support', 'id': 23456},
-            {'jobType': 'supported', 'id': 23456},
-            {'jobType': 'supported', 'id': 30},
-        ]
-    }
+    resp.json.side_effect = (
+        [{
+            'items': [
+                {'jobType': 'supported', 'id': 12345},
+                {'jobType': 'unsupported', 'id': 98765},
+                {'jobType': 'support', 'id': 23456},
+                {'jobType': 'supported', 'id': 23456},
+                {'jobType': 'supported', 'id': 1337},
+            ]
+        }] * 15
+        + [{'items': []}]
+    )
     self.mock.post.return_value = resp
-    main.TESTCASE_CACHE[30] = True
+    main.PROCESSED_TESTCASE_IDS.add(1337)
 
     result = main.load_new_testcases()
 
@@ -217,11 +228,9 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
         mock.call(
             'https://clusterfuzz.com/v2/testcases/load',
             headers={'Authorization': 'Bearer xyzabc'},
-            json={'page': 1, 'reproducible': 'yes'}),
-        mock.call(
-            'https://clusterfuzz.com/v2/testcases/load',
-            headers={'Authorization': 'Bearer xyzabc'},
-            json={'page': 2, 'reproducible': 'yes'})
+            json={'page': page, 'reproducible': 'yes',
+                  'q': 'platform:linux', 'open': 'yes'})
+        for page in xrange(1, 17)
     ])
 
 
