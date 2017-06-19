@@ -1,6 +1,6 @@
 """Module for the 'reproduce' command.
 
-Locally reproduces a testcase given a Clusterfuzz ID."""
+Locally reproduces a testcase given a ClusterFuzz ID."""
 # Copyright 2016 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -84,7 +84,6 @@ def send_request(url, data):
 
   Attempts to authenticate and is guaranteed to either
   return a valid, authorized response or throw an exception."""
-
   header = common.get_stored_auth_header() or get_verification_header()
   response = None
   for _ in range(2):
@@ -100,20 +99,29 @@ def send_request(url, data):
       break
 
   if response.status_code != 200:
-    raise error.ClusterfuzzAuthError(response.text)
+    raise error.ClusterFuzzError(response.status_code, response.text)
 
   common.store_auth_header(response.headers[CLUSTERFUZZ_AUTH_HEADER])
   return response
 
+
 def get_testcase_info(testcase_id):
-  """Pulls testcase information from Clusterfuzz.
+  """Pulls testcase information from ClusterFuzz.
 
   Returns a dictionary with the JSON response if the
   authentication is successful.
   """
-
   data = json.dumps({'testcaseId': testcase_id})
-  return json.loads(send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data).text)
+  try:
+    return json.loads(send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data).text)
+  except error.ClusterFuzzError as e:
+    if e.status_code == 404:
+      raise error.InvalidTestcaseIdError(testcase_id)
+    elif e.status_code == 403 or e.status_code == 401:
+      raise error.UnauthorizedError(testcase_id)
+    else:
+      raise e
+
 
 def ensure_goma():
   """Ensures GOMA is installed and ready for use, and starts it."""

@@ -58,21 +58,20 @@ class SanitizerNotProvidedError(ExpectedException):
         self.MESSAGE, self.EXIT_CODE)
 
 
-class ClusterfuzzAuthError(ExpectedException):
-  """An exception to deal with Clusterfuzz Authentication errors.
+class ClusterFuzzError(ExpectedException):
+  """An exception to deal with clusterfuzz.com's errors.
 
   Makes the response dict available for inspection later on when
   the exception is dealt with."""
 
   MESSAGE = (
-      'Error authenticating with Clusterfuzz. '
-      'Can you access the testcase on clusterfuzz.com using the same email?'
-      '\n{response}')
+      "Error calling clusterfuzz.com's API. \nHere's the response: {response}")
   EXIT_CODE = 44
 
-  def __init__(self, response):
-    super(ClusterfuzzAuthError, self).__init__(
+  def __init__(self, status_code, response):
+    super(ClusterFuzzError, self).__init__(
         self.MESSAGE.format(response=str(response)), self.EXIT_CODE)
+    self.status_code = status_code
     self.response = response
 
 
@@ -235,3 +234,32 @@ class UserRespondingNoError(ExpectedException):
     super(UserRespondingNoError, self).__init__(
         self.MESSAGE.format(question=question),
         self.EXIT_CODE)
+
+
+class InvalidTestcaseIdError(ExpectedException):
+  """An exception when the testcase id is invalid."""
+
+  MESSAGE = (
+      'The testcase ID ({testcase_id}) is invalid.\n'
+      "Please double-check if there's a typo.\n"
+      'Also, can you access '
+      'https://clusterfuzz.com/v2/testcase-detail/{testcase_id} ?')
+  EXIT_CODE = 56
+
+  def __init__(self, testcase_id):
+    super(InvalidTestcaseIdError, self).__init__(
+        self.MESSAGE.format(testcase_id=str(testcase_id)), self.EXIT_CODE)
+
+
+class UnauthorizedError(ExpectedException):
+  """An exception when the user cannot access the testcase."""
+
+  MESSAGE = (
+      "You aren't allowed to access the testcase ID ({testcase_id}). "
+      'Can you access '
+      'https://clusterfuzz.com/v2/testcase-detail/{testcase_id} ?')
+  EXIT_CODE = 57
+
+  def __init__(self, testcase_id):
+    super(UnauthorizedError, self).__init__(
+        self.MESSAGE.format(testcase_id=str(testcase_id)), self.EXIT_CODE)

@@ -61,7 +61,7 @@ class InitTest(helpers.ExtendedTestCase):
     """Test init."""
     error.MinimizationNotFinishedError()
     error.SanitizerNotProvidedError()
-    error.ClusterfuzzAuthError('resp')
+    error.ClusterFuzzError(500, 'resp')
     error.PermissionsTooPermissiveError('filename', 'perm')
     error.GomaNotInstalledError()
     error.JobTypeNotSupportedError('job')
@@ -73,3 +73,5 @@ class InitTest(helpers.ExtendedTestCase):
     error.CommandFailedError('cmd', 12, 'err')
     error.KillProcessFailedError('cmd', 123)
     error.UserRespondingNoError('question')
+    error.InvalidTestcaseIdError('123456')
+    error.UnauthorizedError('123456')

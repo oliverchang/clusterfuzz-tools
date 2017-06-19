@@ -174,8 +174,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
         ])
 
 
-class GetTestcaseInfoTest(helpers.ExtendedTestCase):
-  """Test get_testcase_info."""
+class SendRequestTest(helpers.ExtendedTestCase):
+  """Test send_request."""
 
   def setUp(self):
     helpers.patch(self, [
@@ -199,18 +199,18 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
         text=json.dumps(response_dict),
         headers=response_headers)
 
-    response = reproduce.get_testcase_info(999)
+    response = reproduce.send_request('url', 'data')
 
     self.assert_exact_calls(self.mock.get_stored_auth_header, [mock.call()])
-    self.assert_exact_calls(self.mock.store_auth_header, [
-        mock.call('Bearer 12345')])
+    self.assert_exact_calls(
+        self.mock.store_auth_header, [mock.call('Bearer 12345')])
     self.assert_exact_calls(self.mock.post, [mock.call(
-        url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL,
+        url='url',
         headers={'Authorization': 'Bearer 12345',
                  'User-Agent': 'clusterfuzz-tools'},
-        data=json.dumps({'testcaseId': 999}),
+        data='data',
         allow_redirects=True)])
-    self.assertEqual(response, response_dict)
+    self.assertEqual(200, response.status_code)
 
   def test_incorrect_stored_header(self):
     """Tests when the header is stored, but has expired/is invalid."""
@@ -229,26 +229,26 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
     self.mock.get_stored_auth_header.return_value = 'Bearer 12345'
     self.mock.get_verification_header.return_value = 'VerificationCode 12345'
 
-    response = reproduce.get_testcase_info(999)
+    response = reproduce.send_request('url', 'data')
 
     self.assert_exact_calls(self.mock.get_stored_auth_header, [mock.call()])
     self.assert_exact_calls(self.mock.get_verification_header, [mock.call()])
     self.assert_exact_calls(self.mock.post, [
         mock.call(
             allow_redirects=True,
-            url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL,
-            data=json.dumps({'testcaseId': 999}),
+            url='url',
+            data='data',
             headers={'Authorization': 'Bearer 12345',
                      'User-Agent': 'clusterfuzz-tools'}),
         mock.call(
             headers={'Authorization': 'VerificationCode 12345',
                      'User-Agent': 'clusterfuzz-tools'},
             allow_redirects=True,
-            data=json.dumps({'testcaseId': 999}),
-            url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL)])
+            data='data',
+            url='url')])
     self.assert_exact_calls(self.mock.store_auth_header, [
         mock.call('Bearer 12345')])
-    self.assertEqual(response, response_dict)
+    self.assertEqual(200, response.status_code)
 
 
   def test_correct_verification_auth(self):
@@ -267,7 +267,7 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
         text=json.dumps(response_dict),
         headers=response_headers)
 
-    response = reproduce.get_testcase_info(999)
+    response = reproduce.send_request('url', 'data')
 
     self.assert_exact_calls(self.mock.get_stored_auth_header, [mock.call()])
     self.assert_exact_calls(self.mock.get_verification_header, [mock.call()])
@@ -277,9 +277,9 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
         headers={'Authorization': 'VerificationCode 12345',
                  'User-Agent': 'clusterfuzz-tools'},
         allow_redirects=True,
-        data=json.dumps({'testcaseId': 999}),
-        url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL)])
-    self.assertEqual(response, response_dict)
+        data='data',
+        url='url')])
+    self.assertEqual(200, response.status_code)
 
   def test_incorrect_authorization(self):
     """Ensures that when auth is incorrect the right exception is thrown"""
@@ -303,47 +303,69 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
         text=json.dumps(response_dict),
         headers=response_headers)
 
-    with self.assertRaises(error.ClusterfuzzAuthError) as cm:
-      reproduce.get_testcase_info(999)
-    self.assertIn('Invalid verification code (12345)', cm.exception.message)
+    with self.assertRaises(error.ClusterFuzzError) as cm:
+      reproduce.send_request('url', 'data')
+
+    self.assertEqual(401, cm.exception.status_code)
     self.assert_exact_calls(self.mock.post, [
         mock.call(
             allow_redirects=True,
-            url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL,
-            data=json.dumps({'testcaseId': 999}),
+            url='url',
+            data='data',
             headers={'Authorization': 'Bearer 12345',
                      'User-Agent': 'clusterfuzz-tools'}),
         mock.call(
             allow_redirects=True,
             headers={'Authorization': 'VerificationCode 12345',
                      'User-Agent': 'clusterfuzz-tools'},
-            url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL,
-            data=json.dumps({'testcaseId': 999}))])
+            url='url',
+            data='data')])
 
-  def test_incorrect_testcase_id(self):
-    """Ensures that when auth is incorrect the right exception is thrown"""
 
-    response_headers = {'x-clusterfuzz-authorization': 'Bearer 12345'}
-    response_dict = {'status': 404}
+class GetTestcaseInfoTest(helpers.ExtendedTestCase):
+  """Test get_testcase_info."""
 
-    self.mock.get_stored_auth_header.return_value = ''
-    self.mock.get_verification_header.return_value = 'VerificationCode 12345'
-    self.mock.post.return_value = mock.Mock(
-        status_code=404,
-        text=json.dumps(response_dict),
-        headers=response_headers)
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.commands.reproduce.send_request'])
 
-    with self.assertRaises(error.ClusterfuzzAuthError) as cm:
-      reproduce.get_testcase_info(999)
-    self.assertIn('404', cm.exception.message)
-    self.assert_exact_calls(self.mock.post, [
-        mock.call(
-            allow_redirects=True,
-            headers={'Authorization': 'VerificationCode 12345',
-                     'User-Agent': 'clusterfuzz-tools'},
-            url=reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL,
-            data=json.dumps({'testcaseId': 999}))
-    ])
+  def test_succeed(self):
+    """Test succeed."""
+    self.mock.send_request.return_value = mock.Mock(text='{"test": "ok"}')
+    self.assertEqual({'test': 'ok'}, reproduce.get_testcase_info('12345'))
+
+    self.mock.send_request.assert_called_once_with(
+        reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
+
+  def test_404(self):
+    """Test 404."""
+    self.mock.send_request.side_effect = error.ClusterFuzzError(404, 'resp')
+    with self.assertRaises(error.InvalidTestcaseIdError) as cm:
+      reproduce.get_testcase_info('12345')
+
+    self.assertIn('12345', cm.exception.message)
+    self.mock.send_request.assert_called_once_with(
+        reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
+
+  def test_401(self):
+    """Test 401."""
+    self.mock.send_request.side_effect = error.ClusterFuzzError(401, 'resp')
+    with self.assertRaises(error.UnauthorizedError) as cm:
+      reproduce.get_testcase_info('12345')
+
+    self.assertIn('12345', cm.exception.message)
+    self.mock.send_request.assert_called_once_with(
+        reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
+
+  def test_error(self):
+    """Test other error."""
+    self.mock.send_request.side_effect = error.ClusterFuzzError(500, 'resp')
+    with self.assertRaises(error.ClusterFuzzError) as cm:
+      reproduce.get_testcase_info('12345')
+
+    self.assertEqual(500, cm.exception.status_code)
+    self.assertIn('resp', cm.exception.message)
+    self.mock.send_request.assert_called_once_with(
+        reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
 
 
 class GetVerificationHeaderTest(helpers.ExtendedTestCase):
