@@ -99,7 +99,7 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
 
     self.assert_exact_calls(self.mock.call, [
         mock.call(
-            '/python-daemon-data/clusterfuzz reproduce 1234 ',
+            '/python-daemon-data/clusterfuzz reproduce 1234',
             cwd=main.HOME,
             env={
                 'CF_QUIET': '1',

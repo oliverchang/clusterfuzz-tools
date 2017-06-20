@@ -37,7 +37,7 @@ RETRIABLE_RETURN_CODES = set([
 ])
 
 # The options that will be tested on the CI.
-TESTED_OPTS = ['', '--current --skip-deps']
+TEST_OPTIONS = ['', '--current --skip-deps']
 
 # The number of seconds to sleep after each test run to avoid DDOS.
 SLEEP_TIME = 30
@@ -76,7 +76,7 @@ def build_command(args):
 def run_testcase(testcase_id, opts):
   """Attempts to reproduce a testcase."""
   return_code, _ = process.call(
-      '%s reproduce %s %s' % (BINARY_LOCATION, testcase_id, opts),
+      ('%s reproduce %s %s' % (BINARY_LOCATION, testcase_id, opts)).strip(),
       cwd=HOME,
       env={
           'CF_QUIET': '1',
@@ -225,7 +225,7 @@ def reset_and_run_testcase(testcase_id, category, release):
 
   version = prepare_binary_and_get_version(release)
 
-  for opts in TESTED_OPTS:
+  for opts in TEST_OPTIONS:
     update_auth_header()
     return_code = run_testcase(testcase_id, opts=opts)
     logs = read_logs()

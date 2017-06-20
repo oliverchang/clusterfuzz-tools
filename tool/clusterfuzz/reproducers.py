@@ -321,13 +321,15 @@ class BaseReproducer(object):
       if is_similar(new_signature, self.crash_signature):
         logger.info(common.colorize(
             'The stacktrace seems similar to the original stacktrace.\n'
-            "Since you've reproduced the crash correctly, there are 2 tricks "
-            'that might help you move faster:\n'
+            "Since you've reproduced the crash correctly, there are some "
+            'tricks that might help you move faster:\n'
             '- In case of fixing the crash, you can use `--current` to run on '
             'tip-of-tree (or, in other words, avoid git-checkout).\n'
             '- You can save time by using `--skip-deps` to avoid '
             '`gclient sync`, `gclient runhooks`, and other dependency '
-            'installations in subsequential runs.',
+            'installations in subsequential runs.\n'
+            '- You can debug with gdb using `--enable-debug`.\n'
+            '- You can modify args.gn and arguments using `--edit-mode`.',
             common.BASH_GREEN_MARKER))
         return True
       else:

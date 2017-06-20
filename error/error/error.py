@@ -110,7 +110,12 @@ class GomaNotInstalledError(ExpectedException):
 class JobTypeNotSupportedError(ExpectedException):
   """An exception raised when user tries to run an unsupported build type."""
 
-  MESSAGE = 'The job {job_type} is not yet supported by clusterfuzz tools.'
+  MESSAGE = (
+      'Unfortunately, the job {job_type} is not yet supported.'
+      'If you believe that the crash will occur on Linux as well, please go '
+      'to https://clusterfuzz.com/uploadusertestcase, upload the testcase, '
+      'and choose a corresponding Linux job type. Ask us for help at '
+      'clusterfuzz-tools-users@[chromium.org,google.com].')
   EXIT_CODE = 47
 
   def __init__(self, job_type):
@@ -170,7 +175,8 @@ class UnreproducibleError(ExpectedException):
       '- Run `build/install-build-deps.sh` to ensure all dependencies are '
       'installed.\n'
       '- Run with more number of trials by adding `-i 10`, '
-      'which is especially good for gesture-related testcases.')
+      'which is especially good for gesture-related testcases.\n'
+      '- Use gdb to debug by adding `--enable-debug`.')
   EXIT_CODE = 51
 
   def __init__(self, count, crash_signatures):
