@@ -300,6 +300,7 @@ class BaseReproducer(object):
     """Reproduce normally."""
     iterations = 1
     signatures = set()
+    has_signature = False
     while iterations <= iteration_max:
       _, output = self.reproduce_crash()
 
@@ -307,6 +308,8 @@ class BaseReproducer(object):
       new_signature.output = output
       signatures.add(new_signature)
 
+      has_signature = (bool(new_signature.crash_type) or
+                       bool(new_signature.crash_state_lines))
       logger.info(
           'New crash type: %s\n'
           'New crash state:\n  %s\n\n'
@@ -339,7 +342,11 @@ class BaseReproducer(object):
       iterations += 1
       time.sleep(3)
 
-    raise error.UnreproducibleError(iteration_max, signatures)
+
+    if has_signature:
+      raise error.DifferentStacktraceError(iteration_max, signatures)
+    else:
+      raise error.UnreproducibleError(iteration_max, signatures)
 
   # TODO(tanin): Remove iteration_max and use self.options.iterations.
   def reproduce(self, iteration_max):

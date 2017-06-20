@@ -6,6 +6,19 @@ import sys
 
 UNKNOWN_EXIT_CODE_ERROR = 'UnknownExitCodeError'
 
+UNREPRODUCIBLE_SUGGESTION_TEXT = (
+    'Here are things you can try:\n'
+    '- Run outside XVFB (e.g. you will be able to see the launched program '
+    'on screen.) with `--disable-xvfb`, which is especially useful for '
+    'Chrome.\n'
+    '- Run with the downloaded build by adding `--build download`.\n'
+    '- Run `build/install-build-deps.sh` to ensure all dependencies are '
+    'installed.\n'
+    '- Run with more number of trials by adding `-i 10`, '
+    'which is especially good for gesture-related testcases.\n'
+    '- Use gdb to debug by adding `--enable-debug`.')
+
+
 
 def get_class_name(exit_code):
   """Get class name given an exit code."""
@@ -163,20 +176,11 @@ class BadJobTypeDefinitionError(ExpectedException):
 
 
 class UnreproducibleError(ExpectedException):
-  """An exception raised when the testcase cannot be reproduced."""
+  """An exception raised when the crash cannot be reproduced."""
 
   MESSAGE = (
-      'The testcase cannot be reproduced after trying {count} times.\n'
-      'Here are things you can try:\n'
-      '- Run outside XVFB (e.g. you will be able to see the launched program '
-      'on screen.) with `--disable-xvfb`, which is especially useful for '
-      'Chrome.\n'
-      '- Run with the downloaded build by adding `--build download`.\n'
-      '- Run `build/install-build-deps.sh` to ensure all dependencies are '
-      'installed.\n'
-      '- Run with more number of trials by adding `-i 10`, '
-      'which is especially good for gesture-related testcases.\n'
-      '- Use gdb to debug by adding `--enable-debug`.')
+      'The crash cannot be reproduced after trying {count} times.\n'
+      + UNREPRODUCIBLE_SUGGESTION_TEXT)
   EXIT_CODE = 51
 
   def __init__(self, count, crash_signatures):
@@ -269,3 +273,24 @@ class UnauthorizedError(ExpectedException):
   def __init__(self, testcase_id):
     super(UnauthorizedError, self).__init__(
         self.MESSAGE.format(testcase_id=str(testcase_id)), self.EXIT_CODE)
+
+
+class DifferentStacktraceError(ExpectedException):
+  """An exception raised when the resulting crash is different."""
+
+  MESSAGE = (
+      'The original crash cannot be reproduced after trying {count} times.\n'
+      'But it seems we get a different stacktrace. Could you check if the '
+      'stacktrace is good enough?\n\n' + UNREPRODUCIBLE_SUGGESTION_TEXT)
+  EXIT_CODE = 58
+
+  def __init__(self, count, crash_signatures):
+    crash_signatures = [
+        {'type': s.crash_type, 'state': s.crash_state_lines,
+         'output': s.output[:50000]}
+        for s in list(crash_signatures)[:10]
+    ]
+    super(DifferentStacktraceError, self).__init__(
+        message=self.MESSAGE.format(count=count),
+        exit_code=self.EXIT_CODE,
+        extras={'signatures': crash_signatures})

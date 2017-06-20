@@ -75,3 +75,5 @@ class InitTest(helpers.ExtendedTestCase):
     error.UserRespondingNoError('question')
     error.InvalidTestcaseIdError('123456')
     error.UnauthorizedError('123456')
+    error.DifferentStacktraceError(
+        10, [Signature('type', ['a', 'b'], 'output')])

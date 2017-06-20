@@ -662,12 +662,23 @@ class ReproduceNormalTest(helpers.ExtendedTestCase):
     self.reproducer.crash_state = ['original', 'state']
     self.reproducer.job_type = 'linux_ubsan_chrome'
 
-  def test_bad_stacktrace(self):
+  def test_different_stacktrace(self):
     """Tests system exit when the stacktrace doesn't match."""
 
     wrong_response = {
         'crash_type': 'wrong type',
         'crash_state': 'incorrect\nstate2'}
+    self.mock.post.side_effect = [
+        mock.Mock(text=json.dumps(wrong_response)),
+        mock.Mock(text=json.dumps(wrong_response))]
+
+    with self.assertRaises(error.DifferentStacktraceError):
+      self.reproducer.reproduce_normal(2)
+
+  def test_no_stacktrace(self):
+    """Tests system exit when the stacktrace doesn't match."""
+
+    wrong_response = {'crash_type': '', 'crash_state': ''}
     self.mock.post.side_effect = [
         mock.Mock(text=json.dumps(wrong_response)),
         mock.Mock(text=json.dumps(wrong_response))]
