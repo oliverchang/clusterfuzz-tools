@@ -73,11 +73,11 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
   def test_succeed(self):
     """Ensures testcases are run properly."""
     self.mock.call.return_value = (0, None)
-    self.assertEqual(0, main.run_testcase(1234))
+    self.assertEqual(0, main.run_testcase(1234, '--current'))
 
     self.assert_exact_calls(self.mock.call, [
         mock.call(
-            '/python-daemon-data/clusterfuzz reproduce 1234',
+            '/python-daemon-data/clusterfuzz reproduce 1234 --current',
             cwd=main.HOME,
             env={
                 'CF_QUIET': '1',
@@ -94,11 +94,12 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
     self.mock.call.return_value = (
         error.MinimizationNotFinishedError.EXIT_CODE, None)
     self.assertEqual(
-        error.MinimizationNotFinishedError.EXIT_CODE, main.run_testcase(1234))
+        error.MinimizationNotFinishedError.EXIT_CODE,
+        main.run_testcase(1234, ''))
 
     self.assert_exact_calls(self.mock.call, [
         mock.call(
-            '/python-daemon-data/clusterfuzz reproduce 1234',
+            '/python-daemon-data/clusterfuzz reproduce 1234 ',
             cwd=main.HOME,
             env={
                 'CF_QUIET': '1',
@@ -263,10 +264,13 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
     self.assertFalse(os.path.exists(main.CHROMIUM_OUT))
     self.assertFalse(os.path.exists(main.CLUSTERFUZZ_CACHE_DIR))
 
-    self.assert_exact_calls(self.mock.update_auth_header, [mock.call()])
+    self.assert_exact_calls(
+        self.mock.update_auth_header, [mock.call()] * 2)
     self.assert_exact_calls(self.mock.send_run, [
         mock.call(1234, 'sanity', '0.2.2rc10', 'master', 'run_testcase',
-                  'some logs')
+                  'some logs', ''),
+        mock.call(1234, 'sanity', '0.2.2rc10', 'master', 'run_testcase',
+                  'some logs', '--current --skip-deps')
     ])
     self.assert_exact_calls(
         self.mock.prepare_binary_and_get_version, [mock.call('master')])

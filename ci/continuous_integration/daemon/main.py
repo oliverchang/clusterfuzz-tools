@@ -36,6 +36,9 @@ RETRIABLE_RETURN_CODES = set([
     error.MinimizationNotFinishedError.EXIT_CODE
 ])
 
+# The options that will be tested on the CI.
+TESTED_OPTS = ['', '--current --skip-deps']
+
 # The number of seconds to sleep after each test run to avoid DDOS.
 SLEEP_TIME = 30
 
@@ -70,10 +73,10 @@ def build_command(args):
   return '%s %s' % (BINARY_LOCATION, args)
 
 
-def run_testcase(testcase_id):
+def run_testcase(testcase_id, opts):
   """Attempts to reproduce a testcase."""
   return_code, _ = process.call(
-      '%s reproduce %s' % (BINARY_LOCATION, testcase_id),
+      '%s reproduce %s %s' % (BINARY_LOCATION, testcase_id, opts),
       cwd=HOME,
       env={
           'CF_QUIET': '1',
@@ -221,12 +224,14 @@ def reset_and_run_testcase(testcase_id, category, release):
   process.call('git clean -d -f -f', cwd=CHROMIUM_SRC)
 
   version = prepare_binary_and_get_version(release)
-  update_auth_header()
-  return_code = run_testcase(testcase_id)
-  logs = read_logs()
 
-  stackdriver_logging.send_run(
-      testcase_id, category, version, release, return_code, logs)
+  for opts in TESTED_OPTS:
+    update_auth_header()
+    return_code = run_testcase(testcase_id, opts=opts)
+    logs = read_logs()
+
+    stackdriver_logging.send_run(
+        testcase_id, category, version, release, return_code, logs, opts)
 
 
 def main():

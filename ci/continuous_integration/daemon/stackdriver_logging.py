@@ -34,19 +34,24 @@ def send_log(params, success):
       body=json.dumps(structure))
 
 
-def send_run(testcase_id, testcase_type, version, release, return_code, logs):
+def send_run(
+    testcase_id, testcase_type, version, release, return_code, logs, opts):
   """Send log to Stackdriver."""
   error_name = ''
   success = return_code == 0
+  opts_str = ''
+
+  if opts:
+    opts_str = ', %s' % opts
 
   if success:
-    message = '%s (%s) reproduced %s successfully (%s).' % (
-        version, release, testcase_id, testcase_type)
+    message = '%s (%s) reproduced %s successfully (%s%s).' % (
+        version, release, testcase_id, testcase_type, opts_str)
   else:
     error_name = error.get_class_name(return_code)
     message = (
-        '%s (%s) failed to reproduce %s (%s, %s).' %
-        (version, release, testcase_id, testcase_type, error_name))
+        '%s (%s) failed to reproduce %s (%s, %s%s).' %
+        (version, release, testcase_id, testcase_type, error_name, opts_str))
 
   send_log(
       params={
@@ -58,6 +63,7 @@ def send_run(testcase_id, testcase_type, version, release, return_code, logs):
           'returnCode': return_code,
           'error': error_name,
           # Only write logs when failing to save space.
-          'logs': '' if success else logs
+          'logs': '' if success else logs,
+          'opts': opts
       },
       success=success)

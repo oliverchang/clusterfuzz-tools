@@ -66,9 +66,10 @@ class SendRunTest(helpers.ExtendedTestCase):
     ])
     self.mock.get_class_name.return_value = 'FakeError'
 
-  def _test(self, return_code, message, error, success, expected_logs, logs):
+  def _test(
+      self, return_code, message, error, success, expected_logs, logs, opts):
     stackdriver_logging.send_run(
-        1234, 'sanity', '0.2.2rc3', 'master', return_code, logs)
+        1234, 'sanity', '0.2.2rc3', 'master', return_code, logs, opts)
     self.assert_exact_calls(self.mock.send_log, [
         mock.call(
             params={
@@ -79,7 +80,8 @@ class SendRunTest(helpers.ExtendedTestCase):
                 'release': 'master',
                 'returnCode': return_code,
                 'error': error,
-                'logs': expected_logs
+                'logs': expected_logs,
+                'opts': opts
             },
             success=success)
     ])
@@ -88,11 +90,14 @@ class SendRunTest(helpers.ExtendedTestCase):
     """Test send success log."""
     self._test(
         return_code=0,
-        message='0.2.2rc3 (master) reproduced 1234 successfully (sanity).',
+        message=(
+            '0.2.2rc3 (master) reproduced 1234 successfully '
+            '(sanity, --current --skip-deps).'),
         error='',
         success=True,
         expected_logs='',
-        logs='logs')
+        logs='logs',
+        opts='--current --skip-deps')
     self.assertEqual(0, self.mock.get_class_name.call_count)
 
   def test_fail(self):
@@ -100,9 +105,11 @@ class SendRunTest(helpers.ExtendedTestCase):
     self._test(
         return_code=10,
         message=(
-            '0.2.2rc3 (master) failed to reproduce 1234 (sanity, FakeError).'),
+            '0.2.2rc3 (master) failed to reproduce 1234 '
+            '(sanity, FakeError, --current --skip-deps).'),
         error='FakeError',
         success=False,
         expected_logs='logs',
-        logs='logs')
+        logs='logs',
+        opts='--current --skip-deps')
     self.mock.get_class_name.assert_called_once_with(10)
