@@ -80,10 +80,19 @@ Analytics
 To see the usage from our users, please see [the data in BigQuery](https://bigquery.cloud.google.com/table/clusterfuzz-tools:usage.client_20170612).
 Here are useful links:
 
-- [Usage by users excluding our team members](https://bigquery.cloud.google.com/results/clusterfuzz-tools:bquijob_53154b17_15c69c10d81)
-- [Usage logs excluding
+- [Usage by users (excluding our team
+  members)](https://bigquery.cloud.google.com/savedquery/981641712411:20b7242585c1470f8a485eb1ce3be37a)
+- [Successful usage by users and testcases (excluding our team
+  members)](https://bigquery.cloud.google.com/savedquery/981641712411:e8ec7ebcc9304eb7aba83375e18a974e)
+- [Usage logs (excluding
   our team
-  members](https://pantheon.corp.google.com/logs/viewer?project=clusterfuzz-tools&organizationId=433637338589&minLogLevel=0&expandAll=false&resource=project&logName=projects%2Fclusterfuzz-tools%2Flogs%2Fclient&advancedFilter=resource.type%3D%22project%22%0AlogName%3D%22projects%2Fclusterfuzz-tools%2Flogs%2Fclient%22%0AjsonPayload.user!%3D%22CI%22%0AjsonPayload.user!%3D%22tanin%22%0AjsonPayload.user!%3D%22aarya%22%0AjsonPayload.user!%3D%22clusterfuzz%22%0AjsonPayload.user!%3D%22ochang%22%0AjsonPayload.user!%3D%22mmoroz%22%0AjsonPayload.user!%3D%22mbarbella%22%0AjsonPayload.user!%3D%22tjbecker%22%0AjsonPayload.user!%3D%22everestmz%22)
+  members)](https://pantheon.corp.google.com/logs/viewer?project=clusterfuzz-tools&organizationId=433637338589&minLogLevel=0&expandAll=false&resource=project&logName=projects%2Fclusterfuzz-tools%2Flogs%2Fclient&advancedFilter=resource.type%3D%22project%22%0AlogName%3D%22projects%2Fclusterfuzz-tools%2Flogs%2Fclient%22%0AjsonPayload.user!%3D%22CI%22%0AjsonPayload.user!%3D%22tanin%22%0AjsonPayload.user!%3D%22aarya%22%0AjsonPayload.user!%3D%22clusterfuzz%22%0AjsonPayload.user!%3D%22ochang%22%0AjsonPayload.user!%3D%22mmoroz%22%0AjsonPayload.user!%3D%22mbarbella%22%0AjsonPayload.user!%3D%22tjbecker%22%0AjsonPayload.user!%3D%22everestmz%22)
 - [CI
   logs](https://pantheon.corp.google.com/logs/viewer?project=clusterfuzz-tools&organizationId=433637338589&minLogLevel=0&expandAll=false&resource=project&logName=projects%2Fclusterfuzz-tools%2Flogs%2Fci)
 
+
+Useful links for investigation
+-----------------------------------
+
+- [Query a specific testcase
+  id](https://bigquery.cloud.google.com/savedquery/981641712411:dc2e55b3c47a440a96637a18ee98986b)
