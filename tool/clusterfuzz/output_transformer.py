@@ -59,33 +59,72 @@ class Identity(Base):
     self.write('')
 
 
+def contains_failure(lines):
+  """Check if any line starts with 'FAILED'."""
+  for line in lines:
+    if line.startswith('FAILED'):
+      return True
+  return False
+
+
 class Ninja(Base):
   """Process ninja output and correctly replace previous lines."""
 
   def __init__(self):
     self.current_line = ''
     self.previous_line_size = 0
+    self.previous_failed = False
+    self.lines = []
 
   def process(self, string):
-    """Replace the previous line and print output."""
-    if '\n' in string:
-      tokens = string.split('\n')
-      self.current_line += tokens[0]
-      current_line_size = len(self.current_line)
-
-      if current_line_size < self.previous_line_size:
-        self.current_line += ' ' * (self.previous_line_size - current_line_size)
-
-      self.write('\b' * self.previous_line_size)
-      self.write(self.current_line)
-
-      self.previous_line_size = len(self.current_line)
-
-      self.current_line = tokens[-1]
-    else:
+    """Parse raw string into lines."""
+    if '\n' not in string:
       self.current_line += string
+      return
+
+    tokens = string.split('\n')
+    self.current_line += tokens[0]
+    self.process_line(self.current_line)
+    self.current_line = tokens[-1]
+
+    for line in tokens[1:-1]:
+      self.process_line(line)
+
+  def process_line(self, line):
+    """Process each line individually."""
+    if not line.startswith('['):
+      self.lines.append(line)
+      return
+
+    self.print_block(self.lines)
+    self.lines = [line]
+
+  def print_block(self, lines):
+    """Print the whole block."""
+    if contains_failure(lines):
+      for line in lines:
+        self.print_line(line)
+        self.write('\n')
+        self.previous_failed = True
+    else:
+      for line in lines:
+        self.print_line(line)
+        self.previous_failed = False
+
+  def print_line(self, line):
+    """Print a single line."""
+    line_size = len(line)
+
+    if not self.previous_failed:
+      if line_size < self.previous_line_size:
+        line += ' ' * (self.previous_line_size - line_size)
+      self.write('\b' * self.previous_line_size)
+
+    self.write(line)
+
+    self.previous_line_size = len(line)
 
   def flush(self):
     """Print the residue output."""
-    self.process('\n')
+    self.print_block(self.lines)
     self.write('\n')

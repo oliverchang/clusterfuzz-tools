@@ -41,19 +41,37 @@ class IdentityTest(helpers.ExtendedTestCase):
 class NinjaTest(helpers.ExtendedTestCase):
   """Test Ninja."""
 
-  def test_print(self):
+  def test_long_chunk(self):
+    """Test long chunk."""
+    self._test_print(33)
+
+  def test_short_chunk(self):
+    """Test short chunk."""
+    self._test_print(3)
+
+  def _test_print(self, chunk_size):
     """Test ninja output."""
+    data = (
+        '[1/100] aaaaaaaaaaa\n'
+        '[2/100] bbb\n'
+        '[3/100] ccccc\n'
+        'FAILED: error\n'
+        'more error\n'
+        '[4/100] ddd\n')
     self.output = StringIO.StringIO()
 
     transformer = output_transformer.Ninja()
     transformer.set_output(self.output)
-    transformer.process('aaaaa\n')
-    transformer.process('bbb')
-    transformer.process('\nccc')
-    transformer.process('c\ndddddd')
+    for i in range(0, len(data), chunk_size):
+      transformer.process(data[i:i + chunk_size])
     transformer.flush()
 
     self.assertEqual(
-        'aaaaa\b\b\b\b\bbbb  \b\b\b\b\bcccc \b\b\b\b\bdddddd\n',
+        ('[1/100] aaaaaaaaaaa' +
+         ('\b' * 19) + '[2/100] bbb' + (' ' * 8) +
+         ('\b' * 19) + '[3/100] ccccc' + (' ' * 6) + '\n'
+         'FAILED: error\n' +
+         'more error\n' +
+         '[4/100] ddd\n'),
         self.output.getvalue())
     self.output.close()
