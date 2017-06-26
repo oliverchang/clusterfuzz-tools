@@ -285,7 +285,7 @@ class BuildTargetTest(helpers.ExtendedTestCase):
     builder.build_target()
 
     self.assert_exact_calls(self.mock.execute, [
-        mock.call('gclient', 'sync', chrome_source),
+        mock.call('gclient', 'sync --no-history --shallow', chrome_source),
         mock.call('gclient', 'runhooks', chrome_source),
         mock.call('python', 'tools/clang/scripts/update.py', chrome_source),
         mock.call(
@@ -545,7 +545,7 @@ class PdfiumBuildTargetTest(helpers.ExtendedTestCase):
     self.builder.build_target()
     self.assert_exact_calls(self.mock.setup_gn_args, [mock.call(self.builder)])
     self.assert_exact_calls(self.mock.execute, [
-        mock.call('gclient', 'sync', '/source/dir'),
+        mock.call('gclient', 'sync --no-history --shallow', '/source/dir'),
         mock.call(
             'ninja',
             "-w 'dupbuild=err' -C /build/dir -j 120 -l 8 pdfium_test",
@@ -604,7 +604,7 @@ class ChromiumBuilderTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.setup_gn_args, [mock.call(self.builder)])
     self.assert_exact_calls(self.mock.get_goma_cores, [mock.call(self.builder)])
     self.assert_exact_calls(self.mock.execute, [
-        mock.call('gclient', 'sync', '/chrome/src'),
+        mock.call('gclient', 'sync --no-history --shallow', '/chrome/src'),
         mock.call('gclient', 'runhooks', '/chrome/src'),
         mock.call('python', 'tools/clang/scripts/update.py', '/chrome/src'),
         mock.call(
