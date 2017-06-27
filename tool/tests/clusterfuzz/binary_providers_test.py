@@ -632,7 +632,9 @@ class CfiChromiumBuilderTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.common.execute',
         'clusterfuzz.binary_providers.sha_from_revision',
-        'clusterfuzz.binary_providers.ChromiumBuilder.install_deps'])
+        'clusterfuzz.binary_providers.ChromiumBuilder.install_deps',
+        'os.path.exists'
+    ])
 
     testcase = mock.Mock(id=12345, build_url='', revision=4567)
     self.mock_os_environment({'V8_SRC': '/chrome/src'})
@@ -642,9 +644,21 @@ class CfiChromiumBuilderTest(helpers.ExtendedTestCase):
 
   def test_install_deps(self):
     """Test install deps."""
+    self.mock.exists.return_value = True
     self.builder.install_deps()
     self.mock.execute.assert_called_once_with(
         'build/download_gold_plugin.py', '', '/chrome/src')
+    self.mock.exists.assert_called_once_with(
+        '/chrome/src/build/download_gold_plugin.py')
+    self.mock.install_deps.assert_called_once_with(self.builder)
+
+  def test_not_install_deps(self):
+    """Test NOT install deps."""
+    self.mock.exists.return_value = False
+    self.builder.install_deps()
+    self.assertEqual(0, self.mock.execute.call_count)
+    self.mock.exists.assert_called_once_with(
+        '/chrome/src/build/download_gold_plugin.py')
     self.mock.install_deps.assert_called_once_with(self.builder)
 
 

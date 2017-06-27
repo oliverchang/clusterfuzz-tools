@@ -500,7 +500,10 @@ class CfiChromiumBuilder(ChromiumBuilder):
   def install_deps(self):
     """Run download_gold_plugin.py."""
     super(CfiChromiumBuilder, self).install_deps()
-    common.execute('build/download_gold_plugin.py', '', self.source_directory)
+
+    if os.path.exists(os.path.join(
+        self.source_directory, 'build/download_gold_plugin.py')):
+      common.execute('build/download_gold_plugin.py', '', self.source_directory)
 
 
 class MsanChromiumBuilder(ChromiumBuilder):
