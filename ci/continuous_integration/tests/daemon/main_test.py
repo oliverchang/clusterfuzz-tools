@@ -117,7 +117,7 @@ class LoadSanityCheckTestcasesTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     self.setup_fake_filesystem()
-    os.makedirs('/python-daemon/daemon')
+    os.makedirs(os.path.dirname(main.SANITY_CHECKS))
     with open(main.SANITY_CHECKS, 'w') as f:
       f.write('testcase_ids:\n')
       f.write('#ignore\n')
@@ -250,6 +250,7 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
         'daemon.main.run_testcase',
         'daemon.main.prepare_binary_and_get_version',
         'daemon.main.read_logs',
+        'daemon.main.clean_third_party',
     ])
     self.mock.prepare_binary_and_get_version.return_value = '0.2.2rc10'
     self.mock.run_testcase.return_value = 'run_testcase'
@@ -278,6 +279,7 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
         mock.call('git checkout -f HEAD', cwd=main.CHROMIUM_SRC),
         mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
     ])
+    self.mock.clean_third_party.assert_called_once_with()
 
 
 class BuildMasterAndGetVersionTest(helpers.ExtendedTestCase):
@@ -402,3 +404,42 @@ class ReadLogsTest(helpers.ExtendedTestCase):
     self.assertNotIn(
         'a' * (main.MAX_PREVIEW_LOG_BYTE_COUNT + 1),
         main.read_logs(self.tempfile.name))
+
+
+class CleanThirdPartyTest(helpers.ExtendedTestCase):
+  """Test clean_third_party."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+    helpers.patch(self, ['daemon.process.call'])
+
+  def test_clean(self):
+    """Test clean every git repo."""
+    third_party_path = os.path.join(main.CHROMIUM_SRC, 'third_party')
+    os.makedirs(third_party_path)
+    os.makedirs(os.path.join(third_party_path, 'one_git'))
+    os.makedirs(os.path.join(third_party_path, 'one_git', '.git'))
+    os.makedirs(os.path.join(third_party_path, 'another_git'))
+    os.makedirs(os.path.join(third_party_path, 'another_git', '.git'))
+    os.makedirs(os.path.join(third_party_path, 'not_git'))
+    os.makedirs(os.path.join(third_party_path, 'not_another_git'))
+    os.makedirs(os.path.join(third_party_path, 'not_git', 'sub_git'))
+    os.makedirs(os.path.join(third_party_path, 'not_git', 'sub_git', '.git'))
+    os.makedirs(os.path.join(third_party_path, 'not_git', 'not_sub_git'))
+
+    main.clean_third_party()
+
+    self.assert_exact_calls(self.mock.call, [
+        mock.call('git checkout HEAD -f',
+                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
+        mock.call('git clean -ffdd',
+                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
+        mock.call('git checkout HEAD -f',
+                  cwd=os.path.join(third_party_path, 'one_git', '')),
+        mock.call('git clean -ffdd',
+                  cwd=os.path.join(third_party_path, 'one_git', '')),
+        mock.call('git checkout HEAD -f',
+                  cwd=os.path.join(third_party_path, 'another_git', '')),
+        mock.call('git clean -ffdd',
+                  cwd=os.path.join(third_party_path, 'another_git', '')),
+    ])

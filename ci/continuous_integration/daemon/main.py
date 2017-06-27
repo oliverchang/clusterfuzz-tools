@@ -26,7 +26,7 @@ CHROMIUM_SRC = os.path.join(HOME, 'chromium', 'src')
 CHROMIUM_OUT = os.path.join(CHROMIUM_SRC, 'out')
 RELEASE_ENV = os.path.join(HOME, 'RELEASE_ENV')
 DEPOT_TOOLS = os.path.join(HOME, 'depot_tools')
-SANITY_CHECKS = '/python-daemon/daemon/sanity_checks.yml'
+SANITY_CHECKS = os.path.join(os.path.dirname(__file__), 'sanity_checks.yml')
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
 MAX_PREVIEW_LOG_BYTE_COUNT = 100000
@@ -212,6 +212,23 @@ def read_logs(path=CLUSTERFUZZ_LOG_PATH):
         preview_byte_count, f.read())
 
 
+def clean_third_party():
+  """Clean third_party/ dir. The children of third_party/ are git-ignored.
+    Therefore, git-clean doesn't work. We can't do `git clean -x` either
+    because we would need to pull everything again and hit git's rate limit.
+    Therefore, we go into each child (which is a git repo) and run
+    clean the repo manually."""
+  for root, dirs, _ in os.walk(os.path.join(CHROMIUM_SRC, 'third_party')):
+    for name in dirs:
+      basename = os.path.basename(name)
+      if basename != '.git':
+        continue
+
+      parent = os.path.dirname(name)
+      process.call('git checkout HEAD -f', cwd=os.path.join(root, parent))
+      process.call('git clean -ffdd', cwd=os.path.join(root, parent))
+
+
 def reset_and_run_testcase(testcase_id, category, release):
   """Resets the chromium repo and runs the testcase."""
 
@@ -225,6 +242,8 @@ def reset_and_run_testcase(testcase_id, category, release):
   # handle) cause failure in `gclient sync` and `gn gen`. But we cannot do
   # `git clean -ffddx` because we would hit the git rate-limit.
   process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
+
+  clean_third_party()
 
   version = prepare_binary_and_get_version(release)
 

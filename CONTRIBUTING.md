@@ -63,6 +63,9 @@ From the `ci` directory, perform the below steps:
    (for example, `machine=release` corresponds to the boot disk
    `release-ci-boot` and the machine `release-ci`).
 
+The CI log is at `/var/log/python-daemon/current`. The reproduce tool's log is
+at `/home/clusterfuzz/.clusterfuzz/logs/output.log`.
+
 
 Publish
 ----------
