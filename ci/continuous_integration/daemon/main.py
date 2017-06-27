@@ -220,11 +220,11 @@ def reset_and_run_testcase(testcase_id, category, release):
   process.call('git checkout -f HEAD', cwd=CHROMIUM_SRC)
 
   # Clean untracked files. Because untracked files in submodules are not removed
-  # with `git checkout -f HEAD`. `git clean -ffddx` also cleans untracked
-  # sub-repositories and ignored files. Anecdotally, ignored files cause
-  # failure in `gclient sync` and `gn gen`. The caveat is that `gclient sync`
-  # takes longer.
-  process.call('git clean -ffddx', cwd=CHROMIUM_SRC)
+  # with `git checkout -f HEAD`. `git clean -ffdd` also cleans uncommitted
+  # changes (but not ignored files). Anecdotally, ignored files (which we don't
+  # handle) cause failure in `gclient sync` and `gn gen`. But we cannot do
+  # `git clean -ffddx` because we would hit the git rate-limit.
+  process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
 
   version = prepare_binary_and_get_version(release)
 
