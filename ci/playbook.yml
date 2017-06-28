@@ -116,6 +116,14 @@
             mode='u=rwx,g=rwx,o=rwx'
             recurse={{item.recurse}}
       with_items: "{{files}}"
+    - name: Suppress Goma from auto update
+      copy:
+        content: ""
+        dest: "/home/clusterfuzz/goma/no_auto_update"
+        force: no
+        group: clusterfuzz
+        owner: clusterfuzz
+        mode: 0666
     - copy:
         src: '/google/data/ro/teams/clusterfuzz-tools/releases/clusterfuzz-rc'
         dest: '/python-daemon-data/clusterfuzz'
