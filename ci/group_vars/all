@@ -10,3 +10,5 @@ service_account_email: ci-round-2@clusterfuzz-tools.iam.gserviceaccount.com
 credentials_file: /auto/FuzzInfrastructure/clusterfuzz-tools/clusterfuzz-tools-ci-credentials.json
 
 size_gb: 100
+
+goma_dir: "{{lookup('env', 'GOMA_DIR')|default('~/goma', true)}}"

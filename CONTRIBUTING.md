@@ -66,6 +66,8 @@ From the `ci` directory, perform the below steps:
 The CI log is at `/var/log/python-daemon/current`. The reproduce tool's log is
 at `/home/clusterfuzz/.clusterfuzz/logs/output.log`.
 
+The CI should be deployed, at least, once every month because of goma update.
+
 
 Publish
 ----------
