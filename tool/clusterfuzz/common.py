@@ -159,9 +159,7 @@ class Definition(object):
 
 def store_auth_header(auth_header):
   """Stores 'auth_header' locally for future access."""
-
-  if not os.path.exists(os.path.dirname(AUTH_HEADER_FILE)):
-    os.makedirs(os.path.dirname(AUTH_HEADER_FILE))
+  ensure_dir(os.path.dirname(AUTH_HEADER_FILE))
 
   with open(AUTH_HEADER_FILE, 'w') as f:
     f.write(auth_header)

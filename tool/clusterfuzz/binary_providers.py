@@ -137,15 +137,6 @@ def gclient_runhooks_msan(source_dir, msan_track_origins):
   )
 
 
-def read_gn_args(gn_args, downloaded_args_gn_path):
-  """Read gn_args from variable if exist. Otherwise, get it from file."""
-  if gn_args:
-    return gn_args
-
-  with open(downloaded_args_gn_path, 'r') as f:
-    return f.read()
-
-
 def setup_gn_goma_params(goma_dir, gn_args):
   """Ensures that goma_dir and gn_goma are used correctly."""
   if not goma_dir:
@@ -155,6 +146,55 @@ def setup_gn_goma_params(goma_dir, gn_args):
     gn_args['use_goma'] = 'true'
     gn_args['goma_dir'] = '"%s"' % goma_dir
   return gn_args
+
+
+def deserialize_gn_args(args):
+  """Deserialize the raw string of gn args into a dict."""
+  if not args:
+    return {}
+
+  args_hash = {}
+  for line in args.splitlines():
+    key, val = line.split('=')
+    args_hash[key.strip()] = val.strip()
+  return args_hash
+
+
+def serialize_gn_args(args_hash):
+  """Serialize the gn args (in the dict form) to raw string."""
+  args = []
+  for key, val in sorted(args_hash.iteritems()):
+    args.append('%s = %s' % (key, val))
+  return '\n'.join(args)
+
+
+def download_build(dest, url, binary_name):
+  """Download and extract a build (if it's not already there)."""
+  if os.path.exists(dest):
+    return dest
+
+  logger.info('Downloading build data...')
+  common.ensure_dir(common.CLUSTERFUZZ_BUILDS_DIR)
+
+  gsutil_path = url.replace(
+      'https://storage.cloud.google.com/', 'gs://')
+  common.gsutil('cp %s .' % gsutil_path, common.CLUSTERFUZZ_CACHE_DIR)
+
+  filename = os.path.basename(gsutil_path)
+  saved_file = os.path.join(common.CLUSTERFUZZ_CACHE_DIR, filename)
+
+  common.execute(
+      'unzip', '-q %s -d %s' % (saved_file, common.CLUSTERFUZZ_BUILDS_DIR),
+      cwd=common.CLUSTERFUZZ_DIR)
+
+  logger.info('Cleaning up...')
+  os.remove(saved_file)
+  os.rename(os.path.join(
+      common.CLUSTERFUZZ_BUILDS_DIR, os.path.splitext(filename)[0]), dest)
+
+  binary_location = os.path.join(dest, binary_name)
+  stats = os.stat(binary_location)
+  os.chmod(binary_location, stats.st_mode | stat.S_IEXEC)
 
 
 class BinaryProvider(object):
@@ -169,36 +209,6 @@ class BinaryProvider(object):
   def get_build_directory(self):
     """Get build directory. This method must be implemented by a subclass."""
     raise NotImplementedError
-
-  def download_build_data(self):
-    """Downloads a build and saves it locally."""
-
-    build_dir = self.build_dir_name()
-    binary_location = os.path.join(build_dir, self.binary_name)
-    if os.path.exists(build_dir):
-      return build_dir
-
-    logger.info('Downloading build data...')
-    if not os.path.exists(common.CLUSTERFUZZ_BUILDS_DIR):
-      os.makedirs(common.CLUSTERFUZZ_BUILDS_DIR)
-
-    gsutil_path = self.build_url.replace(
-        'https://storage.cloud.google.com/', 'gs://')
-    common.gsutil('cp %s .' % gsutil_path, common.CLUSTERFUZZ_CACHE_DIR)
-
-    filename = os.path.split(gsutil_path)[1]
-    saved_file = os.path.join(common.CLUSTERFUZZ_CACHE_DIR, filename)
-
-    common.execute(
-        'unzip', '-q %s -d %s' % (saved_file, common.CLUSTERFUZZ_BUILDS_DIR),
-        cwd=common.CLUSTERFUZZ_DIR)
-
-    logger.info('Cleaning up...')
-    os.remove(saved_file)
-    os.rename(os.path.join(common.CLUSTERFUZZ_BUILDS_DIR,
-                           os.path.splitext(filename)[0]), build_dir)
-    stats = os.stat(binary_location)
-    os.chmod(binary_location, stats.st_mode | stat.S_IEXEC)
 
   def get_binary_path(self):
     return '%s/%s' % (self.get_build_directory(), self.binary_name)
@@ -218,7 +228,7 @@ class DownloadedBinary(BinaryProvider):
     if self.build_directory:
       return self.build_directory
 
-    self.download_build_data()
+    download_build(self.build_dir_name(), self.build_url, self.binary_name)
     # We need the source dir so we can use asan_symbolize.py from the
     # chromium source directory.
     self.source_directory = common.get_source_directory('chromium')
@@ -229,17 +239,22 @@ class DownloadedBinary(BinaryProvider):
 class GenericBuilder(BinaryProvider):
   """Provides a base for binary builders."""
 
-  def __init__(self, testcase, definition, binary_name, target, options):
+  def __init__(self, name, testcase, definition, binary_name, target, options):
     """self.git_sha must be set in a subclass, or some of these
     instance methods may not work."""
     super(GenericBuilder, self).__init__(
         testcase_id=testcase.id,
         build_url=testcase.build_url,
         binary_name=binary_name)
+    self.name = name
     self.testcase = testcase
     self.target = target if target else binary_name
     self.options = options
-    self.source_directory = os.environ.get(definition.source_var)
+    # TODO(tanin): Move computation out of constructor because it's difficult
+    # to mock.
+    self.source_directory = (
+        os.environ.get(definition.source_var) or
+        common.get_source_directory(self.name))
     self.gn_args = None
     self.gn_args_options = {}
     self.gn_flags = '--check'
@@ -276,30 +291,11 @@ class GenericBuilder(BinaryProvider):
     ensure_sha(self.git_sha, self.source_directory)
     common.execute(binary, args, self.source_directory)
 
-  def deserialize_gn_args(self, args):
-    """Convert gn args into a dict."""
-
-    args_hash = {}
-    for line in args.splitlines():
-      key, val = line.split('=')
-      args_hash[key.strip()] = val.strip()
-    return args_hash
-
-  def serialize_gn_args(self, args_hash):
-    args = []
-    for key, val in sorted(args_hash.iteritems()):
-      args.append('%s = %s' % (key, val))
-    return '\n'.join(args)
-
   def setup_gn_args(self):
     """Ensures that args.gn is set up properly."""
-    gn_args = read_gn_args(
-        self.gn_args,
-        downloaded_args_gn_path=os.path.join(
-            self.build_dir_name(), ARGS_GN_FILENAME))
+    args_hash = deserialize_gn_args(self.gn_args)
 
     # Add additional options to existing gn args.
-    args_hash = self.deserialize_gn_args(gn_args)
     for k, v in self.gn_args_options.iteritems():
       args_hash[k] = v
 
@@ -317,7 +313,7 @@ class GenericBuilder(BinaryProvider):
     common.delete_if_exists(args_gn_path)
 
     # Let users edit the current args.
-    content = self.serialize_gn_args(self.gn_args)
+    content = serialize_gn_args(self.gn_args)
     content = common.edit_if_needed(
         content, prefix='edit-args-gn-',
         comment='Edit %s before building.' % ARGS_GN_FILENAME,
@@ -326,7 +322,7 @@ class GenericBuilder(BinaryProvider):
     # Write args to file and store.
     with open(args_gn_path, 'w') as f:
       f.write(content)
-    self.gn_args = self.deserialize_gn_args(content)
+    self.gn_args = deserialize_gn_args(content)
 
     logger.info(
         common.colorize('\nGenerating %s:\n%s\n', common.BASH_GREEN_MARKER),
@@ -394,17 +390,10 @@ class GenericBuilder(BinaryProvider):
 
   def get_build_directory(self):
     """Returns the location of the correct build to use for reproduction."""
-
     if self.build_directory:
       return self.build_directory
 
-    if not self.gn_args:
-      self.download_build_data()
-
     self.build_directory = self.build_dir_name()
-
-    if not self.source_directory:
-      self.source_directory = common.get_source_directory(self.name)
 
     if not self.options.current:
       self.checkout_source_by_sha()
@@ -420,13 +409,13 @@ class PdfiumBuilder(GenericBuilder):
 
   def __init__(self, testcase, definition, options):
     super(PdfiumBuilder, self).__init__(
+        name='Pdfium',
         testcase=testcase,
         definition=definition,
         binary_name='pdfium_test',
         target=None,
         options=options)
     self.chromium_sha = sha_from_revision(testcase.revision, 'chromium/src')
-    self.name = 'Pdfium'
     self.git_sha = get_pdfium_sha(self.chromium_sha)
     self.gn_args = testcase.gn_args
     self.gn_args_options = {'pdf_is_standalone': 'true'}
@@ -445,6 +434,7 @@ class ChromiumBuilder(GenericBuilder):
       binary_name = common.get_binary_name(testcase.stacktrace_lines)
 
     super(ChromiumBuilder, self).__init__(
+        name='chromium',
         testcase=testcase,
         definition=definition,
         binary_name=binary_name,
@@ -452,7 +442,6 @@ class ChromiumBuilder(GenericBuilder):
         options=options)
     self.git_sha = sha_from_revision(self.testcase.revision, 'chromium/src')
     self.gn_args = testcase.gn_args
-    self.name = 'chromium'
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands
@@ -472,6 +461,7 @@ class V8Builder(GenericBuilder):
 
   def __init__(self, testcase, definition, options):
     super(V8Builder, self).__init__(
+        name='V8',
         testcase=testcase,
         definition=definition,
         binary_name='d8',
@@ -479,7 +469,6 @@ class V8Builder(GenericBuilder):
         options=options)
     self.git_sha = sha_from_revision(testcase.revision, 'v8/v8')
     self.gn_args = testcase.gn_args
-    self.name = 'V8'
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands

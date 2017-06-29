@@ -80,53 +80,56 @@ class GetPdfiumShaTest(helpers.ExtendedTestCase):
          '/DEPS?format=TEXT'))])
     self.assertEqual(result, '4093039d19f832173ec58cfd9f2e8ac393a76091')
 
-class DownloadBuildDataTest(helpers.ExtendedTestCase):
-  """Tests the download_build_data test."""
+
+class DownloadBuildTest(helpers.ExtendedTestCase):
+  """Test download_build."""
 
   def setUp(self):
-    helpers.patch(self, ['clusterfuzz.common.execute',
-                         'clusterfuzz.common.get_source_directory',
-                         'os.remove',
-                         'os.rename'])
+    helpers.patch(self, [
+        'clusterfuzz.common.execute',
+        'clusterfuzz.common.ensure_dir',
+        'clusterfuzz.common.gsutil',
+        'clusterfuzz.common.get_source_directory',
+        'os.remove',
+        'os.rename',
+        'os.chmod',
+        'os.stat',
+        'os.path.exists'
+    ])
 
-    self.build_url = 'https://storage.cloud.google.com/abc.zip'
-    self.provider = binary_providers.BinaryProvider(1234, self.build_url, 'd8')
+    self.dest_path = '/fake/dest'
+    self.binary_name = 'binary'
+    self.build_url = 'https://storage.cloud.google.com/test/test2/abc.zip'
 
-  def test_build_data_already_downloaded(self):
+  def test_already_download(self):
     """Tests the exit when build data is already returned."""
-
-    self.setup_fake_filesystem()
-    build_dir = os.path.join(common.CLUSTERFUZZ_BUILDS_DIR, '1234_build')
-    os.makedirs(build_dir)
-    self.provider.build_dir = build_dir
-    result = self.provider.download_build_data()
+    self.mock.exists.return_value = True
+    binary_providers.download_build(
+        self.dest_path, self.build_url, self.binary_name)
     self.assert_n_calls(0, [self.mock.execute])
-    self.assertEqual(result, build_dir)
 
   def test_get_build_data(self):
     """Tests extracting, moving and renaming the build data.."""
-
-    helpers.patch(self, ['os.path.exists',
-                         'os.makedirs',
-                         'os.chmod',
-                         'os.stat',
-                         'clusterfuzz.binary_providers.os.remove'])
     self.mock.stat.return_value = mock.Mock(st_mode=0000)
-    self.mock.exists.side_effect = [False, False]
+    self.mock.exists.return_value = False
 
-    self.provider.download_build_data()
+    binary_providers.download_build(
+        self.dest_path, self.build_url, self.binary_name)
 
-    self.assert_exact_calls(self.mock.execute, [
-        mock.call('gsutil', 'cp gs://abc.zip .',
-                  common.CLUSTERFUZZ_CACHE_DIR),
-        mock.call('unzip', '-q %s -d %s' %
-                  (os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'),
-                   common.CLUSTERFUZZ_BUILDS_DIR),
-                  cwd=common.CLUSTERFUZZ_DIR)])
-    self.assert_exact_calls(self.mock.chmod, [
-        mock.call(os.path.join(
-            common.CLUSTERFUZZ_BUILDS_DIR, '1234_build', 'd8'), 64)
-    ])
+    self.mock.execute.assert_called_once_with(
+        'unzip', '-q %s -d %s' % (
+            os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'),
+            common.CLUSTERFUZZ_BUILDS_DIR),
+        cwd=common.CLUSTERFUZZ_DIR
+    )
+    self.mock.remove.assert_called_once_with(
+        os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'))
+    self.mock.rename.assert_called_once_with(
+        os.path.join(common.CLUSTERFUZZ_BUILDS_DIR, 'abc'), self.dest_path)
+    self.mock.gsutil.assert_called_once_with(
+        'cp gs://test/test2/abc.zip .', common.CLUSTERFUZZ_CACHE_DIR)
+    self.mock.chmod.assert_called_once_with(
+        os.path.join(self.dest_path, 'binary'), 64)
 
 
 class GetBinaryPathTest(helpers.ExtendedTestCase):
@@ -148,16 +151,14 @@ class GetBinaryPathTest(helpers.ExtendedTestCase):
     self.assertEqual(result, os.path.join(build_dir, 'd8'))
 
 
-class V8BuilderGetBuildDirectoryTest(helpers.ExtendedTestCase):
-  """Test get_build_directory inside the V8DownloadedBinary class."""
+class BuildTest(helpers.ExtendedTestCase):
+  """Test build inside the V8DownloadedBinary class."""
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.V8Builder.download_build_data',
         'clusterfuzz.binary_providers.sha_from_revision',
         'clusterfuzz.binary_providers.V8Builder.checkout_source_by_sha',
         'clusterfuzz.binary_providers.V8Builder.build_target',
-        'clusterfuzz.common.ask',
         'clusterfuzz.binary_providers.get_current_sha',
         'clusterfuzz.common.execute',
         'clusterfuzz.common.get_source_directory'])
@@ -181,30 +182,6 @@ class V8BuilderGetBuildDirectoryTest(helpers.ExtendedTestCase):
     result = provider.get_build_directory()
     self.assertEqual(
         result, os.path.join(self.chrome_source, 'out', 'clusterfuzz_12345'))
-    self.assert_exact_calls(self.mock.download_build_data,
-                            [mock.call(provider)])
-    self.assert_exact_calls(self.mock.build_target, [mock.call(provider)])
-    self.assert_exact_calls(self.mock.checkout_source_by_sha,
-                            [mock.call(provider)])
-    self.assert_n_calls(0, [self.mock.ask])
-
-  def test_parameter_not_set_invalid_source(self):
-    """Tests when build is not downloaded & no valid source passed."""
-
-    self.mock_os_environment({'V8_SRC': ''})
-    testcase = mock.Mock(id=12345, build_url=self.build_url, revision=54321,
-                         gn_args=None)
-    definition = mock.Mock(source_var='V8_SRC')
-    provider = binary_providers.V8Builder(
-        testcase, definition, libs.make_options(testcase_id=testcase.id))
-
-    self.mock.get_source_directory.return_value = self.chrome_source
-
-    result = provider.get_build_directory()
-    self.assertEqual(
-        result, os.path.join(self.chrome_source, 'out', 'clusterfuzz_12345'))
-    self.assert_exact_calls(self.mock.download_build_data,
-                            [mock.call(provider)])
     self.assert_exact_calls(self.mock.build_target, [mock.call(provider)])
     self.assert_exact_calls(self.mock.checkout_source_by_sha,
                             [mock.call(provider)])
@@ -221,39 +198,39 @@ class V8BuilderGetBuildDirectoryTest(helpers.ExtendedTestCase):
 
     result = provider.get_build_directory()
     self.assertEqual(result, 'dir/already/set')
-    self.assert_n_calls(0, [self.mock.download_build_data])
+
 
 class DownloadedBuildGetBinaryDirectoryTest(helpers.ExtendedTestCase):
   """Test get_build_directory inside the V8DownloadedBuild class."""
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.DownloadedBinary.download_build_data',
-        'clusterfuzz.common.get_source_directory'])
+        'clusterfuzz.binary_providers.download_build',
+        'clusterfuzz.common.get_source_directory'
+    ])
 
-    self.setup_fake_filesystem()
     self.build_url = 'https://storage.cloud.google.com/abc.zip'
+    self.build_dir = os.path.join(common.CLUSTERFUZZ_BUILDS_DIR, '12345_build')
+    self.provider = binary_providers.DownloadedBinary(
+        12345, self.build_url, 'd8')
+    self.provider.source_directory = ''
 
   def test_parameter_not_set(self):
     """Tests functionality when build has never been downloaded."""
-
-    provider = binary_providers.DownloadedBinary(12345, self.build_url, 'd8')
-    build_dir = os.path.join(common.CLUSTERFUZZ_BUILDS_DIR, '12345_build')
-
-    result = provider.get_build_directory()
-    self.assertEqual(result, build_dir)
-    self.assert_exact_calls(self.mock.download_build_data,
-                            [mock.call(provider)])
+    result = self.provider.get_build_directory()
+    self.assertEqual(result, self.build_dir)
+    self.mock.download_build.assert_called_once_with(
+        self.build_dir, self.build_url, 'd8')
+    self.mock.get_source_directory.assert_called_once_with('chromium')
 
   def test_parameter_already_set(self):
     """Tests functionality when the build_directory parameter is already set."""
-
     provider = binary_providers.DownloadedBinary(12345, self.build_url, 'd8')
     provider.build_directory = 'dir/already/set'
 
     result = provider.get_build_directory()
     self.assertEqual(result, 'dir/already/set')
-    self.assert_n_calls(0, [self.mock.download_build_data])
+    self.assertEqual(0, self.mock.download_build.call_count)
 
 
 class BuildTargetTest(helpers.ExtendedTestCase):
@@ -312,7 +289,6 @@ class SetupGnArgsTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.sha_from_revision',
         'clusterfuzz.binary_providers.setup_debug_symbol_if_needed',
         'clusterfuzz.binary_providers.setup_gn_goma_params',
-        'clusterfuzz.binary_providers.read_gn_args',
     ])
     self.testcase_dir = os.path.expanduser(os.path.join('~', 'test_dir'))
     testcase = mock.Mock(id=1234, build_url='', revision=54321, gn_args=None)
@@ -321,13 +297,12 @@ class SetupGnArgsTest(helpers.ExtendedTestCase):
     self.builder = binary_providers.V8Builder(
         testcase, self.definition, libs.make_options(goma_dir='/goma/dir'))
 
-    self.mock.read_gn_args.return_value = 'random = value'
     self.mock.setup_debug_symbol_if_needed.side_effect = lambda v, _1, _2: v
     self.mock.setup_gn_goma_params.side_effect = lambda _, v: v
 
   def test_create_build_dir(self):
     """Tests setting up the args when the build dir does not exist."""
-    self.builder.gn_args = 'another = value2'
+    self.builder.gn_args = 'random = value'
     self.builder.gn_args_options = {'yes': 'no'}
     self.builder.setup_gn_args()
 
@@ -337,6 +312,21 @@ class SetupGnArgsTest(helpers.ExtendedTestCase):
         {'random': 'value', 'yes': 'no'}, self.definition.sanitizer, False)
     self.assertEqual(
         {'random': 'value', 'yes': 'no'}, self.builder.gn_args)
+
+
+class DeserializeGnArgsTest(helpers.ExtendedTestCase):
+  """Test deserialize_gn_args."""
+
+  def test_empty(self):
+    """Test empty args."""
+    self.assertEqual({}, binary_providers.deserialize_gn_args(''))
+    self.assertEqual({}, binary_providers.deserialize_gn_args(None))
+
+  def test_deserialize(self):
+    """Test deserialize."""
+    self.assertEqual(
+        {'a': '"b"', 'c': '1'},
+        binary_providers.deserialize_gn_args('a = "b"\nc=1'))
 
 
 class SetupAllDepsTest(helpers.ExtendedTestCase):
@@ -772,8 +762,11 @@ class GetGomaCoresTest(helpers.ExtendedTestCase):
   """Tests to ensure the correct number of cores is set."""
 
   def setUp(self):
-    helpers.patch(self, ['multiprocessing.cpu_count',
-                         'clusterfuzz.binary_providers.sha_from_revision'])
+    helpers.patch(self, [
+        'multiprocessing.cpu_count',
+        'clusterfuzz.binary_providers.sha_from_revision',
+        'clusterfuzz.common.get_source_directory',
+    ])
 
     self.testcase = mock.Mock(id=12345, build_url='', revision=4567)
     self.definition = mock.Mock(
@@ -923,24 +916,6 @@ class GclientRunhooksMsanTest(helpers.ExtendedTestCase):
                 'use_prebuilt_instrumented_libraries=1')
         }
     )
-
-
-class ReadGnArgsTest(helpers.ExtendedTestCase):
-  """Tests read_gn_args."""
-
-  def setUp(self):
-    self.setup_fake_filesystem()
-
-  def test_dont_read_file(self):
-    """Test having gn args already."""
-    self.assertEqual(
-        'args', binary_providers.read_gn_args('args', '/some/path'))
-
-  def test_read_file(self):
-    """Test read from file."""
-    self.fs.CreateFile('/path/args.gn', contents='from file')
-    self.assertEqual(
-        'from file', binary_providers.read_gn_args('', '/path/args.gn'))
 
 
 class SetupGnGomaParamsTest(helpers.ExtendedTestCase):
