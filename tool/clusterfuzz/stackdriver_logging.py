@@ -15,6 +15,7 @@
 
 import json
 import time
+import getpass
 import os
 import binascii
 import sys
@@ -29,7 +30,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from error import error
 
 
-SESSION_ID = ':'.join([os.environ.get('USER'),
+SESSION_ID = ':'.join([getpass.getuser(),
                        str(time.time()),
                        str(binascii.b2a_hex(os.urandom(20)))])
 logger = logging.getLogger('clusterfuzz')
