@@ -39,6 +39,19 @@ Develop
 4. Run the tool binary: `./pants run tool:clusterfuzz-ci -- reproduce -h`.
 
 
+Setup Ansible on Goobuntu
+---------------------------
+
+1. Check the pip version with `pip --version`. If it's 1.5.4, remove pip with
+   `apt-get uninstall python-pip`. Then, [install pip version 9 or
+   later](https://pip.pypa.io/en/stable/installing/#installing-with-get-pip-py).
+2. Install necessary packages with `sudo pip install ansible==2.3.0.0
+   apache-libcloud==1.5.0 backports.ssl-match-hostname==3.5.0.1`. You should use
+   these exact versions.
+3. Ensure that `~/.ssh/google_compute_engine` exists. If not, please run `gcloud
+   compute ssh <instance_name>` to generate one.
+
+
 Create a CI image
 ------------------
 
@@ -46,7 +59,8 @@ From the `ci` directory, perform the below steps:
 
 1. Modify `image.yml` and increment the version of `image_name` in `group_vars/all`.
 2. Create and merge the pull request.
-3. Run `ansible-playbook image.yml` to create an image.
+3. Run `ansible-playbook image.yml` to create an image. This step might take an
+   hour
 4. Re-deploy all CI instances.
 
 
