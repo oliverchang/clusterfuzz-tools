@@ -46,24 +46,19 @@ def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
   if gestures:
     testcase_json['testcase']['gestures'] = []
 
-  return testcase.Testcase(testcase_json)
+  return testcase.create(testcase_json)
 
 
-class TestcaseFileExtensionTest(helpers.ExtendedTestCase):
-  """Tests the file extension parsing."""
+class FileExtensionTest(helpers.ExtendedTestCase):
+  """Test get_file_extension."""
 
   def test_no_extension(self):
     """Tests functionality when the testcase has no extension."""
-
-    test = build_base_testcase(extension=None)
-    self.assertEqual(test.file_extension, '')
+    self.assertEqual('', testcase.get_file_extension('testcase'))
 
   def test_with_extension(self):
     """Tests functionality when the testcase has an extension."""
-
-    test = build_base_testcase(extension='py')
-    self.assertEqual(test.file_extension, '.py')
-
+    self.assertEqual('.py', testcase.get_file_extension('testcase.py'))
 
 
 class TestcaseSetupTest(helpers.ExtendedTestCase):

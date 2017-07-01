@@ -703,3 +703,44 @@ class EditIfNeededTest(helpers.ExtendedTestCase):
         'test2', common.edit_if_needed('test', 'p', 'c', True))
 
     self.mock.edit.assert_called_once_with('test', prefix='p', comment='c')
+
+
+class DummyMemoize(object):
+  """Dummy class for testing memoize."""
+
+  def __init__(self, a, b):
+    self.a_value = a
+    self.b_value = b
+
+    self.a_execution_count = 0
+    self.b_execution_count = 0
+
+  @common.memoize
+  def a(self):
+    self.a_execution_count += 1
+    return self.a_value
+
+  @common.memoize
+  def b(self):
+    self.b_execution_count += 1
+    return self.b_value
+
+
+class MemoizeTest(helpers.ExtendedTestCase):
+  """Test memoize."""
+
+  def test_memoize(self):
+    """Test memoize."""
+    dummy_0 = DummyMemoize('a', 'b')
+    dummy_1 = DummyMemoize('c', 'd')
+
+    for _ in xrange(0, 5):
+      self.assertEqual('a', dummy_0.a())
+      self.assertEqual('b', dummy_0.b())
+      self.assertEqual('c', dummy_1.a())
+      self.assertEqual('d', dummy_1.b())
+
+    self.assertEqual(1, dummy_0.a_execution_count)
+    self.assertEqual(1, dummy_0.b_execution_count)
+    self.assertEqual(1, dummy_1.a_execution_count)
+    self.assertEqual(1, dummy_1.b_execution_count)

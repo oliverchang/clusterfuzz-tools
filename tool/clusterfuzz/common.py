@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import os
 import sys
 import stat
@@ -520,3 +521,24 @@ def gsutil(*args, **kwargs):
     return execute('gsutil', *args, **kwargs)
   except error.NotInstalledError:
     raise error.GsutilNotInstalledError()
+
+
+def memoize(func):
+  """A decorator for caching the result of an instance method. There are several
+    properties that needs certain actions (e.g. asking for input, downloading
+    file). Without memoize, we would need to maintain an explicit variable to
+    achieve it.
+
+    This only works with an instance method."""
+
+  @functools.wraps(func)
+  def wrapper(self, *args, **kwargs):
+    """Wrapper function."""
+    key = '__memoized_%s__' % func.__name__
+    if hasattr(self, key):
+      return getattr(self, key)
+
+    result = func(self, *args, **kwargs)
+    setattr(self, key, result)
+    return result
+  return wrapper

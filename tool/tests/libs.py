@@ -3,7 +3,62 @@
 
 from __future__ import absolute_import
 
+from clusterfuzz import binary_providers
+from clusterfuzz import reproducers
 from clusterfuzz import common
+from clusterfuzz import testcase
+
+
+def make_testcase(
+    testcase_id='1',
+    stacktrace_lines='a\nb\nc\n',
+    environment=None,
+    reproduction_args='--args',
+    revision=12345,
+    build_url='build_url',
+    job_type='job_type',
+    absolute_path='absolute_path.html',
+    file_extension='.html',
+    reproducible=True,
+    gestures='gestures',
+    crash_type='type',
+    crash_state='state1\nstate2',
+    raw_gn_args='a=b\nc=d'):
+  """Make a testcase."""
+  return testcase.Testcase(
+      testcase_id=testcase_id,
+      stacktrace_lines=stacktrace_lines,
+      environment=(environment or {}),
+      reproduction_args=reproduction_args,
+      revision=revision,
+      build_url=build_url,
+      job_type=job_type,
+      absolute_path=absolute_path,
+      file_extension=file_extension,
+      reproducible=reproducible,
+      gestures=gestures,
+      crash_type=crash_type,
+      crash_state=crash_state,
+      raw_gn_args=raw_gn_args)
+
+
+def make_definition(
+    builder=binary_providers.ChromiumBuilder,
+    source_var='chromium',
+    reproducer=reproducers.LinuxChromeJobReproducer,
+    binary_name='chrome',
+    sanitizer='ASAN',
+    target='chrome_builder_asan',
+    require_user_data_dir=True):
+  """Make a definition."""
+  return common.Definition(
+      builder=builder,
+      source_var=source_var,
+      reproducer=reproducer,
+      binary_name=binary_name,
+      sanitizer=sanitizer,
+      target=target,
+      require_user_data_dir=require_user_data_dir)
 
 
 def make_options(
@@ -20,6 +75,7 @@ def make_options(
     skip_deps=False,
     enable_debug=False,
     goma_dir=None):
+  """Make an option."""
   return common.Options(
       testcase_id=testcase_id,
       current=current,

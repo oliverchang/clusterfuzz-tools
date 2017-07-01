@@ -105,7 +105,7 @@ def send_request(url, data):
   return response
 
 
-def get_testcase_info(testcase_id):
+def get_testcase(testcase_id):
   """Pulls testcase information from ClusterFuzz.
 
   Returns a dictionary with the JSON response if the
@@ -113,7 +113,8 @@ def get_testcase_info(testcase_id):
   """
   data = json.dumps({'testcaseId': testcase_id})
   try:
-    return json.loads(send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data).text)
+    return testcase.create(
+        json.loads(send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data).text))
   except error.ClusterFuzzError as e:
     if e.status_code == 404:
       raise error.InvalidTestcaseIdError(testcase_id)
@@ -251,22 +252,18 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
   logger.debug('%s', str(options))
   logger.info('Downloading testcase information...')
 
-  response = get_testcase_info(testcase_id)
-  current_testcase = testcase.Testcase(response)
-
+  current_testcase = get_testcase(testcase_id)
   definition = get_definition(current_testcase.job_type, build)
 
   warn_unreproducible_if_needed(current_testcase)
 
   if build == 'download':
-    if definition.binary_name:
-      binary_name = definition.binary_name
-    else:
-      binary_name = common.get_binary_name(current_testcase.stacktrace_lines)
     binary_provider = binary_providers.DownloadedBinary(
         testcase_id=current_testcase.id,
         build_url=current_testcase.build_url,
-        binary_name=binary_name)
+        binary_name=(
+            definition.binary_name or
+            common.get_binary_name(current_testcase.stacktrace_lines)))
   else:
     options.goma_dir = None if options.disable_goma else ensure_goma()
     binary_provider = definition.builder(

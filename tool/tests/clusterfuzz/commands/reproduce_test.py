@@ -55,22 +55,12 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.mock_os_environment({'V8_SRC': '/v8/src', 'CHROME_SRC': '/pdf/src'})
     helpers.patch(self, [
         'clusterfuzz.commands.reproduce.get_definition',
-        'clusterfuzz.commands.reproduce.get_testcase_info',
-        'clusterfuzz.testcase.Testcase',
+        'clusterfuzz.commands.reproduce.get_testcase',
         'clusterfuzz.commands.reproduce.ensure_goma',
         'clusterfuzz.binary_providers.DownloadedBinary',
         'clusterfuzz.binary_providers.V8Builder',
         'clusterfuzz.binary_providers.ChromiumBuilder',
     ])
-    self.response = {
-        'testcase': {'gestures': 'test'},
-        'id': 1234,
-        'crash_type': 'Bad Crash',
-        'crash_state': ['halted'],
-        'crash_revision': '123456',
-        'metadata': {'build_url': 'chrome_build_url'},
-        'crash_stacktrace': {'lines': ['Line 1', 'Line 2']}}
-    self.mock.get_testcase_info.return_value = self.response
     self.mock.ensure_goma.return_value = '/goma/dir'
 
     self.builder = mock.Mock(symbolizer_path='/path/to/symbolizer')
@@ -86,7 +76,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         id=1234, build_url='chrome_build_url', revision=123456,
         job_type='linux_asan_d8', reproducible=True,
         reproduction_args='--always-opt')
-    self.mock.Testcase.return_value = self.testcase
+    self.mock.get_testcase.return_value = self.testcase
     self.options = libs.make_options(testcase_id=str(self.testcase.id))
 
   def test_download_no_defined_binary(self):
@@ -100,9 +90,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'download'
     reproduce.execute(**vars(self.options))
 
-    self.assert_exact_calls(self.mock.get_testcase_info, [mock.call('1234')])
+    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
     self.assert_n_calls(0, [self.mock.ensure_goma])
-    self.assert_exact_calls(self.mock.Testcase, [mock.call(self.response)])
     self.assert_exact_calls(
         self.mock.DownloadedBinary,
         [mock.call(1234, 'chrome_build_url', 'stacktrace_binary')])
@@ -128,9 +117,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'download'
     reproduce.execute(**vars(self.options))
 
-    self.assert_exact_calls(self.mock.get_testcase_info, [mock.call('1234')])
+    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
     self.assert_n_calls(0, [self.mock.ensure_goma])
-    self.assert_exact_calls(self.mock.Testcase, [mock.call(self.response)])
     self.assert_exact_calls(
         self.mock.DownloadedBinary,
         [mock.call(1234, 'chrome_build_url', 'defined_binary')])
@@ -151,9 +139,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
     self.options.goma_dir = '/goma/dir'
 
-    self.assert_exact_calls(self.mock.get_testcase_info, [mock.call('1234')])
+    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
     self.assert_exact_calls(self.mock.ensure_goma, [mock.call()])
-    self.assert_exact_calls(self.mock.Testcase, [mock.call(self.response)])
     self.assert_exact_calls(
         self.definition.builder,
         [
@@ -322,16 +309,20 @@ class SendRequestTest(helpers.ExtendedTestCase):
             data='data')])
 
 
-class GetTestcaseInfoTest(helpers.ExtendedTestCase):
-  """Test get_testcase_info."""
+class GetTestcaseTest(helpers.ExtendedTestCase):
+  """Test get_testcase."""
 
   def setUp(self):
-    helpers.patch(self, ['clusterfuzz.commands.reproduce.send_request'])
+    helpers.patch(self, [
+        'clusterfuzz.commands.reproduce.send_request',
+        'clusterfuzz.testcase.create'
+    ])
 
   def test_succeed(self):
     """Test succeed."""
     self.mock.send_request.return_value = mock.Mock(text='{"test": "ok"}')
-    self.assertEqual({'test': 'ok'}, reproduce.get_testcase_info('12345'))
+    self.mock.create.return_value = 'dummy testcase'
+    self.assertEqual('dummy testcase', reproduce.get_testcase('12345'))
 
     self.mock.send_request.assert_called_once_with(
         reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
@@ -340,7 +331,7 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
     """Test 404."""
     self.mock.send_request.side_effect = error.ClusterFuzzError(404, 'resp')
     with self.assertRaises(error.InvalidTestcaseIdError) as cm:
-      reproduce.get_testcase_info('12345')
+      reproduce.get_testcase('12345')
 
     self.assertIn('12345', cm.exception.message)
     self.mock.send_request.assert_called_once_with(
@@ -350,7 +341,7 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
     """Test 401."""
     self.mock.send_request.side_effect = error.ClusterFuzzError(401, 'resp')
     with self.assertRaises(error.UnauthorizedError) as cm:
-      reproduce.get_testcase_info('12345')
+      reproduce.get_testcase('12345')
 
     self.assertIn('12345', cm.exception.message)
     self.mock.send_request.assert_called_once_with(
@@ -360,7 +351,7 @@ class GetTestcaseInfoTest(helpers.ExtendedTestCase):
     """Test other error."""
     self.mock.send_request.side_effect = error.ClusterFuzzError(500, 'resp')
     with self.assertRaises(error.ClusterFuzzError) as cm:
-      reproduce.get_testcase_info('12345')
+      reproduce.get_testcase('12345')
 
     self.assertEqual(500, cm.exception.status_code)
     self.assertIn('resp', cm.exception.message)
