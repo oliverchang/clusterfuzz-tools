@@ -15,6 +15,7 @@ python_library(
         '//3rdparty/python:httplib2',
         '//3rdparty/python:oauth2client',
         '//3rdparty/python:requests',
+        '//3rdparty/python:py-lru-cache',
         # The below 3 packages are needed to fix an SSL error.
         '//3rdparty/python:pyOpenSSL',
         '//3rdparty/python:cryptography',

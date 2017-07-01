@@ -21,7 +21,6 @@ import yaml
 import mock
 
 from daemon import main
-from error import error
 from test_libs import helpers
 
 
@@ -29,11 +28,14 @@ class MainTest(helpers.ExtendedTestCase):
   """Test main."""
 
   def setUp(self):
-    helpers.patch(self, ['daemon.main.load_sanity_check_testcase_ids',
-                         'daemon.main.reset_and_run_testcase',
-                         'daemon.main.update_auth_header',
-                         'daemon.main.load_new_testcases',
-                         'time.sleep'])
+    helpers.patch(self, [
+        'daemon.main.load_sanity_check_testcase_ids',
+        'daemon.main.reset_and_run_testcase',
+        'daemon.main.update_auth_header',
+        'daemon.main.load_new_testcases',
+        'daemon.main.prepare_binary_and_get_version',
+        'time.sleep'
+    ])
     self.setup_fake_filesystem()
     self.mock.load_sanity_check_testcase_ids.return_value = [1, 2]
     self.mock.load_new_testcases.side_effect = [
@@ -60,6 +62,8 @@ class MainTest(helpers.ExtendedTestCase):
         mock.call(4, 'job', sys.argv[1]),
         mock.call(5, 'job', sys.argv[1])])
     self.assertEqual(2, self.mock.update_auth_header.call_count)
+    self.mock.prepare_binary_and_get_version.assert_called_once_with(
+        sys.argv[1])
 
 
 class RunTestcaseTest(helpers.ExtendedTestCase):
@@ -87,29 +91,7 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
                 'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
             raise_on_error=False)
     ])
-    self.assertEqual(set([1234]), main.PROCESSED_TESTCASE_IDS)
-
-  def test_not_save_testcase_id(self):
-    """Test not saving testcase id."""
-    self.mock.call.return_value = (
-        error.MinimizationNotFinishedError.EXIT_CODE, None)
-    self.assertEqual(
-        error.MinimizationNotFinishedError.EXIT_CODE,
-        main.run_testcase(1234, ''))
-
-    self.assert_exact_calls(self.mock.call, [
-        mock.call(
-            '/python-daemon-data/clusterfuzz reproduce 1234',
-            cwd=main.HOME,
-            env={
-                'CF_QUIET': '1',
-                'USER': 'clusterfuzz',
-                'CHROMIUM_SRC': main.CHROMIUM_SRC,
-                'PATH': 'test:%s' % main.DEPOT_TOOLS,
-                'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
-            raise_on_error=False)
-    ])
-    self.assertEqual(0, len(main.PROCESSED_TESTCASE_IDS))
+    self.assertIn(1234, main.PROCESSED_TESTCASE_IDS)
 
 
 class LoadSanityCheckTestcasesTest(helpers.ExtendedTestCase):
@@ -218,7 +200,7 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
         + [{'items': []}]
     )
     self.mock.post.return_value = resp
-    main.PROCESSED_TESTCASE_IDS.add(1337)
+    main.PROCESSED_TESTCASE_IDS[1337] = True
 
     result = main.load_new_testcases()
 
@@ -244,13 +226,12 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
     os.makedirs(main.CLUSTERFUZZ_CACHE_DIR)
 
     helpers.patch(self, [
-        'daemon.process.call',
         'daemon.stackdriver_logging.send_run',
         'daemon.main.update_auth_header',
         'daemon.main.run_testcase',
         'daemon.main.prepare_binary_and_get_version',
         'daemon.main.read_logs',
-        'daemon.main.clean_third_party',
+        'daemon.main.clean',
     ])
     self.mock.prepare_binary_and_get_version.return_value = '0.2.2rc10'
     self.mock.run_testcase.return_value = 'run_testcase'
@@ -275,11 +256,7 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
     ])
     self.assert_exact_calls(
         self.mock.prepare_binary_and_get_version, [mock.call('master')])
-    self.assert_exact_calls(self.mock.call, [
-        mock.call('git checkout -f HEAD', cwd=main.CHROMIUM_SRC),
-        mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
-    ])
-    self.mock.clean_third_party.assert_called_once_with()
+    self.mock.clean.assert_called_once_with()
 
 
 class BuildMasterAndGetVersionTest(helpers.ExtendedTestCase):
@@ -406,8 +383,8 @@ class ReadLogsTest(helpers.ExtendedTestCase):
         main.read_logs(self.tempfile.name))
 
 
-class CleanThirdPartyTest(helpers.ExtendedTestCase):
-  """Test clean_third_party."""
+class CleanTest(helpers.ExtendedTestCase):
+  """Test clean."""
 
   def setUp(self):
     self.setup_fake_filesystem()
@@ -417,6 +394,7 @@ class CleanThirdPartyTest(helpers.ExtendedTestCase):
     """Test clean every git repo."""
     third_party_path = os.path.join(main.CHROMIUM_SRC, 'third_party')
     os.makedirs(third_party_path)
+    os.makedirs(os.path.join(main.CHROMIUM_SRC, '.git'))
     os.makedirs(os.path.join(third_party_path, 'one_git'))
     os.makedirs(os.path.join(third_party_path, 'one_git', '.git'))
     os.makedirs(os.path.join(third_party_path, 'another_git'))
@@ -427,19 +405,25 @@ class CleanThirdPartyTest(helpers.ExtendedTestCase):
     os.makedirs(os.path.join(third_party_path, 'not_git', 'sub_git', '.git'))
     os.makedirs(os.path.join(third_party_path, 'not_git', 'not_sub_git'))
 
-    main.clean_third_party()
+    main.clean()
 
     self.assert_exact_calls(self.mock.call, [
+        mock.call('git clean -ffdd',
+                  cwd=os.path.join(main.CHROMIUM_SRC, '')),
         mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
+                  cwd=os.path.join(main.CHROMIUM_SRC, '')),
         mock.call('git clean -ffdd',
                   cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
         mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'one_git', '')),
+                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
         mock.call('git clean -ffdd',
                   cwd=os.path.join(third_party_path, 'one_git', '')),
         mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'another_git', '')),
+                  cwd=os.path.join(third_party_path, 'one_git', '')),
         mock.call('git clean -ffdd',
                   cwd=os.path.join(third_party_path, 'another_git', '')),
+        mock.call('git checkout HEAD -f',
+                  cwd=os.path.join(third_party_path, 'another_git', '')),
+        mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
+        mock.call('git checkout HEAD -f', cwd=main.CHROMIUM_SRC),
     ])

@@ -11,10 +11,10 @@ import requests
 from requests.packages.urllib3.util import retry
 from requests import adapters
 from oauth2client.client import GoogleCredentials
+from lru import LRUCacheDict
 
 from daemon import stackdriver_logging
 from daemon import process
-from error import error
 
 
 HOME = os.path.expanduser('~')
@@ -31,10 +31,8 @@ BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
 MAX_PREVIEW_LOG_BYTE_COUNT = 100000
 
-PROCESSED_TESTCASE_IDS = set()
-RETRIABLE_RETURN_CODES = set([
-    error.MinimizationNotFinishedError.EXIT_CODE
-])
+# Every testcase (including the failed ones) will be run again after 2 days.
+PROCESSED_TESTCASE_IDS = LRUCacheDict(max_size=1000, expiration=172800)
 
 # The options that will be tested on the CI.
 TEST_OPTIONS = ['', '--current --skip-deps']
@@ -88,12 +86,7 @@ def run_testcase(testcase_id, opts):
       raise_on_error=False
   )
 
-  # If the return code is retriable, we don't store it in
-  # PROCESSED_TESTCASE_IDS. This means the testcase will be run again in the
-  # next batch.
-  if return_code not in RETRIABLE_RETURN_CODES:
-    PROCESSED_TESTCASE_IDS.add(testcase_id)
-
+  PROCESSED_TESTCASE_IDS[testcase_id] = True
   return return_code
 
 
@@ -212,38 +205,35 @@ def read_logs(path=CLUSTERFUZZ_LOG_PATH):
         preview_byte_count, f.read())
 
 
-def clean_third_party():
-  """Clean third_party/ dir. The children of third_party/ are git-ignored.
+def clean():
+  """Clean all repos. The sub-repos are git-ignored.
     Therefore, git-clean doesn't work. We can't do `git clean -x` either
     because we would need to pull everything again and hit git's rate limit.
     Therefore, we go into each child (which is a git repo) and run
     clean the repo manually."""
-  for root, dirs, _ in os.walk(os.path.join(CHROMIUM_SRC, 'third_party')):
+  for root, dirs, _ in os.walk(CHROMIUM_SRC):
     for name in dirs:
       basename = os.path.basename(name)
       if basename != '.git':
         continue
 
       parent = os.path.dirname(name)
-      process.call('git checkout HEAD -f', cwd=os.path.join(root, parent))
       process.call('git clean -ffdd', cwd=os.path.join(root, parent))
+      process.call('git checkout HEAD -f', cwd=os.path.join(root, parent))
 
+  # The last checkout ensures the root is cleaned. Anecdotally, we have
+  # encountered a dilemma where cleaning the root litters a sub-repo (e.g.
+  # testing/gmock) and vice versa. But cleaning the root is more important.
+  process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
+  process.call('git checkout HEAD -f', cwd=CHROMIUM_SRC)
 
 def reset_and_run_testcase(testcase_id, category, release):
   """Resets the chromium repo and runs the testcase."""
 
   delete_if_exists(CHROMIUM_OUT)
   delete_if_exists(CLUSTERFUZZ_CACHE_DIR)
-  process.call('git checkout -f HEAD', cwd=CHROMIUM_SRC)
 
-  # Clean untracked files. Because untracked files in submodules are not removed
-  # with `git checkout -f HEAD`. `git clean -ffdd` also cleans uncommitted
-  # changes (but not ignored files). Anecdotally, ignored files (which we don't
-  # handle) cause failure in `gclient sync` and `gn gen`. But we cannot do
-  # `git clean -ffddx` because we would hit the git rate-limit.
-  process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
-
-  clean_third_party()
+  clean()
 
   version = prepare_binary_and_get_version(release)
 
@@ -258,6 +248,10 @@ def reset_and_run_testcase(testcase_id, category, release):
 
 def main():
   release = sys.argv[1]
+
+  # For master, we need to build the binary beforehand because we might
+  # check the job type using the binary.
+  prepare_binary_and_get_version(release)
 
   for testcase_id in load_sanity_check_testcase_ids():
     reset_and_run_testcase(testcase_id, 'sanity', release)
