@@ -54,26 +54,28 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.chrome_src = '/usr/local/google/home/user/repos/chromium/src'
     self.mock_os_environment({'V8_SRC': '/v8/src', 'CHROME_SRC': '/pdf/src'})
     helpers.patch(self, [
-        'clusterfuzz.commands.reproduce.get_definition',
-        'clusterfuzz.commands.reproduce.get_testcase',
-        'clusterfuzz.commands.reproduce.ensure_goma',
         'clusterfuzz.binary_providers.DownloadedBinary',
         'clusterfuzz.binary_providers.V8Builder',
         'clusterfuzz.binary_providers.ChromiumBuilder',
+        'clusterfuzz.commands.reproduce.get_definition',
+        'clusterfuzz.commands.reproduce.get_testcase',
+        'clusterfuzz.commands.reproduce.ensure_goma',
+        'clusterfuzz.testcase.Testcase.get_testcase_path',
     ])
     self.mock.ensure_goma.return_value = '/goma/dir'
 
     self.builder = mock.Mock(symbolizer_path='/path/to/symbolizer')
-    self.builder.get_binary_path.return_value = '/path/to/binary'
-
-    self.definition = mock.Mock(
-        kwargs={}, source_var='V8_SRC', sanitizer='ASAN')
+    self.reproducer = mock.Mock()
+    self.definition = mock.Mock()
 
     self.definition.builder.return_value = self.builder
+    self.definition.reproducer.return_value = self.reproducer
+
     self.mock.get_definition.return_value = self.definition
+    self.mock.DownloadedBinary.return_value = self.builder
 
     self.testcase = mock.Mock(
-        id=1234, build_url='chrome_build_url', revision=123456,
+        id='1234', build_url='chrome_build_url', revision=123456,
         job_type='linux_asan_d8', reproducible=True,
         reproduction_args='--always-opt')
     self.mock.get_testcase.return_value = self.testcase
@@ -90,21 +92,16 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'download'
     reproduce.execute(**vars(self.options))
 
-    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
+    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
     self.assert_n_calls(0, [self.mock.ensure_goma])
-    self.assert_exact_calls(
-        self.mock.DownloadedBinary,
-        [mock.call(1234, 'chrome_build_url', 'stacktrace_binary')])
-    self.assert_exact_calls(
-        self.definition.reproducer,
-        [
-            mock.call(
-                binary_provider=self.mock.DownloadedBinary.return_value,
-                definition=self.definition,
-                testcase=self.testcase,
-                sanitizer=self.definition.sanitizer,
-                options=self.options)
-        ])
+    self.mock.DownloadedBinary.assert_called_once_with(
+        self.testcase.id, self.testcase.build_url, 'stacktrace_binary')
+    self.definition.reproducer.assert_called_once_with(
+        binary_provider=self.mock.DownloadedBinary.return_value,
+        definition=self.definition,
+        testcase=self.testcase,
+        sanitizer=self.definition.sanitizer,
+        options=self.options)
 
   def test_grab_data_with_download(self):
     """Ensures all method calls are made correctly when downloading."""
@@ -117,21 +114,16 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'download'
     reproduce.execute(**vars(self.options))
 
-    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
+    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
     self.assert_n_calls(0, [self.mock.ensure_goma])
-    self.assert_exact_calls(
-        self.mock.DownloadedBinary,
-        [mock.call(1234, 'chrome_build_url', 'defined_binary')])
-    self.assert_exact_calls(
-        self.definition.reproducer,
-        [
-            mock.call(
-                binary_provider=self.mock.DownloadedBinary.return_value,
-                definition=self.definition,
-                testcase=self.testcase,
-                sanitizer=self.definition.sanitizer,
-                options=self.options)
-        ])
+    self.mock.DownloadedBinary.assert_called_once_with(
+        self.testcase.id, self.testcase.build_url, 'defined_binary')
+    self.definition.reproducer.assert_called_once_with(
+        binary_provider=self.mock.DownloadedBinary.return_value,
+        definition=self.definition,
+        testcase=self.testcase,
+        sanitizer=self.definition.sanitizer,
+        options=self.options)
 
   def test_grab_data_standalone(self):
     """Ensures all method calls are made correctly when building locally."""
@@ -139,26 +131,18 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
     self.options.goma_dir = '/goma/dir'
 
-    self.assert_exact_calls(self.mock.get_testcase, [mock.call('1234')])
-    self.assert_exact_calls(self.mock.ensure_goma, [mock.call()])
-    self.assert_exact_calls(
-        self.definition.builder,
-        [
-            mock.call(
-                testcase=self.testcase,
-                definition=self.definition,
-                options=self.options)
-        ])
-    self.assert_exact_calls(
-        self.definition.reproducer,
-        [
-            mock.call(
-                binary_provider=self.builder,
-                definition=self.definition,
-                testcase=self.testcase,
-                sanitizer=self.definition.sanitizer,
-                options=self.options)
-        ])
+    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
+    self.mock.ensure_goma.assert_called_once_with()
+    self.definition.builder.assert_called_once_with(
+        testcase=self.testcase,
+        definition=self.definition,
+        options=self.options)
+    self.definition.reproducer.assert_called_once_with(
+        binary_provider=self.builder,
+        definition=self.definition,
+        testcase=self.testcase,
+        sanitizer=self.definition.sanitizer,
+        options=self.options)
 
 
 class SendRequestTest(helpers.ExtendedTestCase):
