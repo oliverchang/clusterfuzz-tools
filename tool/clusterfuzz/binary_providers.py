@@ -357,8 +357,7 @@ class GenericBuilder(BinaryProvider):
   def gclient_sync(self):
     """Run gclient sync. This is separated from install_deps because it is
       needed in every build."""
-    common.execute(
-        'gclient', 'sync --no-history --shallow', self.get_source_dir_path())
+    common.execute('gclient', 'sync', self.get_source_dir_path())
 
   def gclient_runhooks(self):
     """Run gclient runhooks. This is separated from install_deps because it is

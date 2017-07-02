@@ -314,8 +314,7 @@ class GenericBuilderGclientSyncTest(helpers.ExtendedTestCase):
     """Test doing nothing"""
     self.mock.get_source_dir_path.return_value = '/src'
     self.builder.gclient_sync()
-    self.mock.execute.assert_called_once_with(
-        'gclient', 'sync --no-history --shallow', '/src')
+    self.mock.execute.assert_called_once_with('gclient', 'sync', '/src')
 
 
 class GenericBuilderGclientRunhooksTest(helpers.ExtendedTestCase):
