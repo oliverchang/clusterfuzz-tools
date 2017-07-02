@@ -183,8 +183,8 @@ class BaseReproducer(object):
     self.environment = testcase.environment
     self.args = testcase.reproduction_args
     self.binary_path = binary_provider.get_binary_path()
-    self.build_directory = binary_provider.get_build_directory()
-    self.source_directory = binary_provider.source_directory
+    self.build_directory = binary_provider.get_build_dir_path()
+    self.source_directory = binary_provider.get_source_dir_path()
     self.symbolizer_path = common.get_resource(
         0755, 'resources', 'llvm-symbolizer')
     self.sanitizer = sanitizer

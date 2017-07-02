@@ -168,7 +168,7 @@ def serialize_gn_args(args_hash):
   return '\n'.join(args)
 
 
-def download_build(dest, url, binary_name):
+def download_build_if_needed(dest, url, binary_name):
   """Download and extract a build (if it's not already there)."""
   if os.path.exists(dest):
     return dest
@@ -197,123 +197,140 @@ def download_build(dest, url, binary_name):
   os.chmod(binary_location, stats.st_mode | stat.S_IEXEC)
 
 
+def git_checkout(sha, revision, source_dir_path):
+  """Checks out the correct revision."""
+  if get_current_sha(source_dir_path) == sha:
+    logger.info(
+        'The current state of %s is already on the revision %s (commit=%s). '
+        'No action needed.', source_dir_path, revision, sha)
+    return
+
+  binary = 'git'
+  args = 'checkout %s' % sha
+  common.check_confirm(CHECKOUT_MESSAGE.format(
+      revision=revision,
+      cmd='%s %s' % (binary, args),
+      source_dir=source_dir_path))
+
+  if is_repo_dirty(source_dir_path):
+    raise error.DirtyRepoError(source_dir_path)
+
+  ensure_sha(sha, source_dir_path)
+  common.execute(binary, args, source_dir_path)
+
+
+def compute_goma_cores(goma_threads, goma_dir):
+  """Choose the correct amount of GOMA cores for a build."""
+  if goma_threads:
+    return goma_threads
+
+  cpu_count = multiprocessing.cpu_count()
+  return 50 * cpu_count if goma_dir else (3 * cpu_count) / 4
+
+
+def compute_goma_load(goma_load):
+  """Choose the correct amount of GOMA load for a build."""
+  if goma_load:
+    return goma_load
+  return multiprocessing.cpu_count() * 2
+
+
 class BinaryProvider(object):
   """Downloads/builds and then provides the location of a binary."""
 
+  # TODO(tanin): BinaryProvider should also take the whole testcase, definition,
+  # and options.
   def __init__(self, testcase_id, build_url, binary_name):
     self.testcase_id = testcase_id
     self.build_url = build_url
-    self.build_directory = None
     self.binary_name = binary_name
 
-  def get_build_directory(self):
-    """Get build directory. This method must be implemented by a subclass."""
-    raise NotImplementedError
-
   def get_binary_path(self):
-    return '%s/%s' % (self.get_build_directory(), self.binary_name)
+    return '%s/%s' % (self.get_build_dir_path(), self.binary_name)
 
-  def build_dir_name(self):
-    """Returns a build number's respective directory."""
-    return os.path.join(common.CLUSTERFUZZ_BUILDS_DIR,
-                        str(self.testcase_id) + '_build')
+  def get_build_dir_path(self):
+    """Return the build directory."""
+    raise NotImplementedError
 
 
 class DownloadedBinary(BinaryProvider):
   """Uses a downloaded binary."""
 
-  def get_build_directory(self):
+  @common.memoize
+  def get_build_dir_path(self):
     """Returns the location of the correct build to use for reproduction."""
+    path = os.path.join(
+        common.CLUSTERFUZZ_BUILDS_DIR, '%s_downloaded_build' % self.testcase_id)
+    download_build_if_needed(path, self.build_url, self.binary_name)
+    return path
 
-    if self.build_directory:
-      return self.build_directory
-
-    download_build(self.build_dir_name(), self.build_url, self.binary_name)
-    # We need the source dir so we can use asan_symbolize.py from the
-    # chromium source directory.
-    self.source_directory = common.get_source_directory('chromium')
-    self.build_directory = self.build_dir_name()
-    return self.build_directory
+  @common.memoize
+  def get_source_dir_path(self):
+    """Return the chromium source dir path."""
+    # Need asan_symbolizer.py from Chromium's source code.
+    return common.get_source_directory('chromium')
 
 
 class GenericBuilder(BinaryProvider):
   """Provides a base for binary builders."""
 
-  def __init__(self, name, testcase, definition, binary_name, target, options):
+  def __init__(
+      self, source_name, testcase, definition, binary_name, target, options):
     """self.git_sha must be set in a subclass, or some of these
     instance methods may not work."""
     super(GenericBuilder, self).__init__(
         testcase_id=testcase.id,
         build_url=testcase.build_url,
         binary_name=binary_name)
-    self.name = name
+    self.source_name = source_name
     self.testcase = testcase
     self.target = target if target else binary_name
     self.options = options
-    # TODO(tanin): Move computation out of constructor because it's difficult
-    # to mock.
-    self.source_directory = (
-        os.environ.get(definition.source_var) or
-        common.get_source_directory(self.name))
-    self.gn_args = None
-    self.gn_args_options = {}
-    self.gn_flags = '--check'
+    # `extra_gn_args` should be moved into supported_job_types.yml.
+    self.extra_gn_args = {}
+    self.gn_gen_flags = '--check'
     self.definition = definition
 
-  def out_dir_name(self):
-    """Returns the correct out dir in which to build the revision.
+  @common.memoize
+  def get_source_dir_path(self):
+    """Return the source dir path."""
+    return common.get_source_directory(self.source_name)
+
+  def get_git_sha(self):
+    """Return git sha."""
+    raise NotImplementedError
+
+  @common.memoize
+  def get_build_dir_path(self):
+    """Return the correct out dir in which to build the revision.
       Directory name is of the format clusterfuzz_<testcase_id>_<git_sha>."""
+    return os.path.join(
+        self.get_source_dir_path(), 'out', 'clusterfuzz_%s' % self.testcase_id)
 
-    dir_name = os.path.join(
-        self.source_directory, 'out',
-        'clusterfuzz_%s' % self.options.testcase_id)
-    return dir_name
-
-  def checkout_source_by_sha(self):
-    """Checks out the correct revision."""
-    if get_current_sha(self.source_directory) == self.git_sha:
-      logger.info(
-          'The current state of %s is already on the revision %s (commit=%s). '
-          'No action needed.', self.source_directory, self.testcase.revision,
-          self.git_sha)
-      return
-
-    binary = 'git'
-    args = 'checkout %s' % self.git_sha
-    common.check_confirm(CHECKOUT_MESSAGE.format(
-        revision=self.testcase.revision,
-        cmd='%s %s' % (binary, args),
-        source_dir=self.source_directory))
-
-    if is_repo_dirty(self.source_directory):
-      raise error.DirtyRepoError(self.source_directory)
-
-    ensure_sha(self.git_sha, self.source_directory)
-    common.execute(binary, args, self.source_directory)
-
-  def setup_gn_args(self):
+  @common.memoize
+  def get_gn_args(self):
     """Ensures that args.gn is set up properly."""
-    args_hash = deserialize_gn_args(self.gn_args)
+    args = deserialize_gn_args(self.testcase.raw_gn_args)
 
     # Add additional options to existing gn args.
-    for k, v in self.gn_args_options.iteritems():
-      args_hash[k] = v
+    for k, v in self.extra_gn_args.iteritems():
+      args[k] = v
 
-    args_hash = setup_gn_goma_params(self.options.goma_dir, args_hash)
-    args_hash = setup_debug_symbol_if_needed(
-        args_hash, self.definition.sanitizer, self.options.enable_debug)
+    args = setup_gn_goma_params(self.options.goma_dir, args)
+    args = setup_debug_symbol_if_needed(
+        args, self.definition.sanitizer, self.options.enable_debug)
 
-    self.gn_args = args_hash
+    return args
 
   def gn_gen(self):
     """Finalize args.gn and run `gn gen`."""
-    args_gn_path = os.path.join(self.build_directory, ARGS_GN_FILENAME)
+    args_gn_path = os.path.join(self.get_build_dir_path(), ARGS_GN_FILENAME)
 
-    common.ensure_dir(self.build_directory)
+    common.ensure_dir(self.get_build_dir_path())
     common.delete_if_exists(args_gn_path)
 
     # Let users edit the current args.
-    content = serialize_gn_args(self.gn_args)
+    content = serialize_gn_args(self.get_gn_args())
     content = common.edit_if_needed(
         content, prefix='edit-args-gn-',
         comment='Edit %s before building.' % ARGS_GN_FILENAME,
@@ -322,14 +339,14 @@ class GenericBuilder(BinaryProvider):
     # Write args to file and store.
     with open(args_gn_path, 'w') as f:
       f.write(content)
-    self.gn_args = deserialize_gn_args(content)
 
     logger.info(
         common.colorize('\nGenerating %s:\n%s\n', common.BASH_GREEN_MARKER),
         args_gn_path, content)
 
-    common.execute('gn', 'gen %s %s' % (self.gn_flags, self.build_directory),
-                   self.source_directory)
+    common.execute(
+        'gn', 'gen %s %s' % (self.gn_gen_flags, self.get_build_dir_path()),
+        self.get_source_dir_path())
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands
@@ -341,7 +358,7 @@ class GenericBuilder(BinaryProvider):
     """Run gclient sync. This is separated from install_deps because it is
       needed in every build."""
     common.execute(
-        'gclient', 'sync --no-history --shallow', self.source_directory)
+        'gclient', 'sync --no-history --shallow', self.get_source_dir_path())
 
   def gclient_runhooks(self):
     """Run gclient runhooks. This is separated from install_deps because it is
@@ -356,23 +373,13 @@ class GenericBuilder(BinaryProvider):
     self.gclient_runhooks()
     self.install_deps()
 
-  def get_goma_cores(self):
-    """Choose the correct amount of GOMA cores for a build."""
-    if self.options.goma_threads:
-      return self.options.goma_threads
-    else:
-      cpu_count = multiprocessing.cpu_count()
-      return 50 * cpu_count if self.options.goma_dir else (3 * cpu_count) / 4
-
-  def get_goma_load(self):
-    """Choose the correct amount of GOMA load for a build."""
-    if self.options.goma_load:
-      return self.options.goma_load
-    return multiprocessing.cpu_count() * 2
-
-  def build_target(self):
+  def build(self):
     """Build the correct revision in the source directory."""
-    self.setup_gn_args()
+    if not self.options.current:
+      git_checkout(
+          self.get_git_sha(), self.testcase.revision,
+          self.get_source_dir_path())
+
     self.setup_all_deps()
     self.gn_gen()
 
@@ -380,28 +387,14 @@ class GenericBuilder(BinaryProvider):
         'ninja',
         ("-w 'dupbuild=err' -C {build_dir} -j {goma_cores} -l {goma_load} "
          '{target}'.format(
-             build_dir=self.build_directory,
-             goma_cores=self.get_goma_cores(),
-             goma_load=self.get_goma_load(),
+             build_dir=self.get_build_dir_path(),
+             goma_cores=compute_goma_cores(
+                 self.options.goma_threads, self.options.goma_dir),
+             goma_load=compute_goma_load(self.options.goma_load),
              target=self.target)),
-        self.source_directory,
+        self.get_source_dir_path(),
         capture_output=False,
         stdout_transformer=output_transformer.Ninja())
-
-  def get_build_directory(self):
-    """Returns the location of the correct build to use for reproduction."""
-    if self.build_directory:
-      return self.build_directory
-
-    self.build_directory = self.build_dir_name()
-
-    if not self.options.current:
-      self.checkout_source_by_sha()
-
-    self.build_directory = self.out_dir_name()
-    self.build_target()
-
-    return self.build_directory
 
 
 class PdfiumBuilder(GenericBuilder):
@@ -409,17 +402,20 @@ class PdfiumBuilder(GenericBuilder):
 
   def __init__(self, testcase, definition, options):
     super(PdfiumBuilder, self).__init__(
-        name='Pdfium',
+        source_name='Pdfium',
         testcase=testcase,
         definition=definition,
         binary_name='pdfium_test',
         target=None,
         options=options)
-    self.chromium_sha = sha_from_revision(testcase.revision, 'chromium/src')
-    self.git_sha = get_pdfium_sha(self.chromium_sha)
-    self.gn_args = testcase.gn_args
-    self.gn_args_options = {'pdf_is_standalone': 'true'}
-    self.gn_flags = ''
+    self.extra_gn_args = {'pdf_is_standalone': 'true'}
+    self.gn_gen_flags = ''
+
+  @common.memoize
+  def get_git_sha(self):
+    """Return git sha."""
+    chromium_sha = sha_from_revision(self.testcase.revision, 'chromium/src')
+    return get_pdfium_sha(chromium_sha)
 
 
 class ChromiumBuilder(GenericBuilder):
@@ -434,26 +430,29 @@ class ChromiumBuilder(GenericBuilder):
       binary_name = common.get_binary_name(testcase.stacktrace_lines)
 
     super(ChromiumBuilder, self).__init__(
-        name='chromium',
+        source_name='chromium',
         testcase=testcase,
         definition=definition,
         binary_name=binary_name,
         target=target_name,
         options=options)
-    self.git_sha = sha_from_revision(self.testcase.revision, 'chromium/src')
-    self.gn_args = testcase.gn_args
+
+  @common.memoize
+  def get_git_sha(self):
+    """Return git sha."""
+    return sha_from_revision(self.testcase.revision, 'chromium/src')
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands
       within this method are not required to be executed in a subsequential
       run."""
     common.execute('python', 'tools/clang/scripts/update.py',
-                   self.source_directory)
+                   self.get_source_dir_path())
 
   def gclient_runhooks(self):
     """Run gclient runhooks. This is separated from install_deps because it is
       needed in every build, yet the arguments might differ."""
-    common.execute('gclient', 'runhooks', self.source_directory)
+    common.execute('gclient', 'runhooks', self.get_source_dir_path())
 
 
 class V8Builder(GenericBuilder):
@@ -461,26 +460,29 @@ class V8Builder(GenericBuilder):
 
   def __init__(self, testcase, definition, options):
     super(V8Builder, self).__init__(
-        name='V8',
+        source_name='V8',
         testcase=testcase,
         definition=definition,
         binary_name='d8',
         target=None,
         options=options)
-    self.git_sha = sha_from_revision(testcase.revision, 'v8/v8')
-    self.gn_args = testcase.gn_args
+
+  @common.memoize
+  def get_git_sha(self):
+    """Return git sha."""
+    return sha_from_revision(self.testcase.revision, 'v8/v8')
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands
       within this method are not required to be executed in a subsequential
       run."""
     common.execute('python', 'tools/clang/scripts/update.py',
-                   self.source_directory)
+                   self.get_source_dir_path())
 
   def gclient_runhooks(self):
     """Run gclient runhooks. This is separated from install_deps because it is
       needed in every build, yet the arguments might differ."""
-    common.execute('gclient', 'runhooks', self.source_directory)
+    common.execute('gclient', 'runhooks', self.get_source_dir_path())
 
 
 class CfiChromiumBuilder(ChromiumBuilder):
@@ -491,8 +493,9 @@ class CfiChromiumBuilder(ChromiumBuilder):
     super(CfiChromiumBuilder, self).install_deps()
 
     if os.path.exists(os.path.join(
-        self.source_directory, 'build/download_gold_plugin.py')):
-      common.execute('build/download_gold_plugin.py', '', self.source_directory)
+        self.get_source_dir_path(), 'build/download_gold_plugin.py')):
+      common.execute(
+          'build/download_gold_plugin.py', '', self.get_source_dir_path())
 
 
 class MsanChromiumBuilder(ChromiumBuilder):
@@ -501,7 +504,8 @@ class MsanChromiumBuilder(ChromiumBuilder):
   def gclient_runhooks(self):
     """Run gclient runhooks."""
     gclient_runhooks_msan(
-        self.source_directory, self.gn_args.get('msan_track_origins'))
+        self.get_source_dir_path(),
+        self.get_gn_args().get('msan_track_origins'))
 
 
 class MsanV8Builder(V8Builder):
@@ -510,7 +514,8 @@ class MsanV8Builder(V8Builder):
   def gclient_runhooks(self):
     """Run gclient runhooks."""
     gclient_runhooks_msan(
-        self.source_directory, self.gn_args.get('msan_track_origins'))
+        self.get_source_dir_path(),
+        self.get_gn_args().get('msan_track_origins'))
 
 
 class ChromiumBuilder32Bit(ChromiumBuilder):
@@ -519,7 +524,7 @@ class ChromiumBuilder32Bit(ChromiumBuilder):
   def install_deps(self):
     """Install other deps."""
     super(ChromiumBuilder32Bit, self).install_deps()
-    install_build_deps_32bit(self.source_directory)
+    install_build_deps_32bit(self.get_source_dir_path())
 
 
 class V8Builder32Bit(V8Builder):
@@ -528,4 +533,4 @@ class V8Builder32Bit(V8Builder):
   def install_deps(self):
     """Install other deps."""
     super(V8Builder32Bit, self).install_deps()
-    install_build_deps_32bit(self.source_directory)
+    install_build_deps_32bit(self.get_source_dir_path())

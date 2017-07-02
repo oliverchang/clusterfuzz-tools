@@ -41,7 +41,7 @@ def create_reproducer(klass):
 
   binary_provider = mock.Mock(symbolizer_path='/path/to/symbolizer')
   binary_provider.get_binary_path.return_value = '/fake/build_dir/test_binary'
-  binary_provider.get_build_directory.return_value = '/fake/build_dir'
+  binary_provider.get_build_dir_path.return_value = '/fake/build_dir'
   testcase = mock.Mock(gestures=None, stacktrace_lines=[{'content': 'line'}],
                        job_type='job_type', reproduction_args='--original')
   reproducer = klass(
@@ -174,7 +174,7 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider = mock.Mock(
         symbolizer_path='%s/llvm-symbolizer' % self.app_directory)
     mocked_provider.get_binary_path.return_value = '%s/d8' % self.app_directory
-    mocked_provider.get_build_directory.return_value = self.app_directory
+    mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.BaseReproducer(
         self.definition, mocked_provider, mocked_testcase, 'UBSAN',
@@ -207,7 +207,7 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider = mock.Mock(
         symbolizer_path='%s/llvm-symbolizer' % self.app_directory)
     mocked_provider.get_binary_path.return_value = '%s/d8' % self.app_directory
-    mocked_provider.get_build_directory.return_value = self.app_directory
+    mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.BaseReproducer(
         self.definition, mocked_provider, mocked_testcase, 'UBSAN',
@@ -243,7 +243,7 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider = mock.Mock(
         symbolizer_path='%s/llvm-symbolizer' % self.app_directory)
     mocked_provider.get_binary_path.return_value = '%s/d8' % self.app_directory
-    mocked_provider.get_build_directory.return_value = self.app_directory
+    mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.LinuxChromeJobReproducer(
         self.definition, mocked_provider, mocked_testcase, 'UBSAN',
@@ -295,7 +295,7 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     self.provider = mock.Mock(
         symbolizer_path='/chrome/source/folder/llvm-symbolizer')
     self.provider.get_binary_path.return_value = '/chrome/source/folder/d8'
-    self.provider.get_build_directory.return_value = '/chrome/source/folder'
+    self.provider.get_build_dir_path.return_value = '/chrome/source/folder'
     self.definition = mock.Mock()
     self.mock.update_for_gdb_if_needed.side_effect = (
         lambda binary_path, args, timeout, should_enable_gdb:

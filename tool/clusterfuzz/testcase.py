@@ -153,7 +153,7 @@ class Testcase(object):
     common.delete_if_exists(self.testcase_dir_path)
     os.makedirs(self.testcase_dir_path)
 
-    logger.info('Downloading testcase data...')
+    logger.info('Downloading testcase files...')
 
     auth_header = common.get_stored_auth_header()
     # Do not use curl because curl doesn't support downloading an empty file.

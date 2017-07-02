@@ -102,6 +102,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         testcase=self.testcase,
         sanitizer=self.definition.sanitizer,
         options=self.options)
+    self.assertEqual(0, self.builder.build.call_count)
 
   def test_grab_data_with_download(self):
     """Ensures all method calls are made correctly when downloading."""
@@ -124,6 +125,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         testcase=self.testcase,
         sanitizer=self.definition.sanitizer,
         options=self.options)
+    self.assertEqual(0, self.builder.build.call_count)
 
   def test_grab_data_standalone(self):
     """Ensures all method calls are made correctly when building locally."""
@@ -143,6 +145,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         testcase=self.testcase,
         sanitizer=self.definition.sanitizer,
         options=self.options)
+    self.builder.build.assert_called_once_with()
 
 
 class SendRequestTest(helpers.ExtendedTestCase):

@@ -111,6 +111,7 @@ def get_testcase(testcase_id):
   Returns a dictionary with the JSON response if the
   authentication is successful.
   """
+  logger.info('Downloading testcase information...')
   data = json.dumps({'testcaseId': testcase_id})
   try:
     return testcase.create(
@@ -250,7 +251,6 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
 
   logger.info('Reproducing testcase %s', testcase_id)
   logger.debug('%s', str(options))
-  logger.info('Downloading testcase information...')
 
   current_testcase = get_testcase(testcase_id)
   definition = get_definition(current_testcase.job_type, build)
@@ -270,6 +270,7 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
         testcase=current_testcase,
         definition=definition,
         options=options)
+    binary_provider.build()
 
   reproducer = definition.reproducer(
       definition=definition,
