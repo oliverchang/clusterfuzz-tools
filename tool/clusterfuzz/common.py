@@ -62,7 +62,7 @@ Options = namedlist.namedlist(
     'Options',
     ['testcase_id', 'current', 'build', 'disable_goma', 'goma_threads',
      'goma_load', 'iterations', 'disable_xvfb', 'target_args', 'edit_mode',
-     'skip_deps', 'enable_debug', 'goma_dir']
+     'skip_deps', 'enable_debug']
 )
 
 
@@ -124,18 +124,6 @@ def style(s, marker, reset_char):
     return s
 
 
-def get_binary_name(stacktrace):
-  prefix = 'Running command: '
-  stacktrace_lines = [l['content'] for l in stacktrace]
-  for l in stacktrace_lines:
-    if prefix in l:
-      l = l.replace(prefix, '').split(' ')
-      binary_name = os.path.basename(l[0])
-      return binary_name
-
-  raise error.MinimizationNotFinishedError()
-
-
 def get_version():
   """Print version."""
   with open(get_resource(0640, 'resources', 'VERSION')) as f:
@@ -145,15 +133,15 @@ def get_version():
 class Definition(object):
   """Holds all the necessary information to initialize a job's builder."""
 
-  def __init__(self, builder, source_var, reproducer, binary_name,
+  def __init__(self, builder, source_name, reproducer, binary_name,
                sanitizer, target, require_user_data_dir):
     if not sanitizer:
       raise error.SanitizerNotProvidedError()
     self.builder = builder
-    self.source_var = source_var
+    self.source_name = source_name
+    self.reproducer = reproducer
     self.binary_name = binary_name
     self.sanitizer = sanitizer
-    self.reproducer = reproducer
     self.target = target
     self.require_user_data_dir = require_user_data_dir
 
@@ -495,24 +483,6 @@ def get_valid_abs_dir(path):
     return None
 
   return abs_path
-
-
-def get_source_directory(source_name):
-  """Returns the location of the source directory."""
-
-  source_env = '%s_SRC' % source_name.upper()
-
-  if os.environ.get(source_env):
-    return os.environ.get(source_env)
-
-  message = ('This is a %(name)s testcase, please define %(env_name)s'
-             ' or enter your %(name)s source location here' %
-             {'name': source_name, 'env_name': source_env})
-
-  source_directory = get_valid_abs_dir(
-      ask(message, 'Please enter a valid directory', get_valid_abs_dir))
-
-  return source_directory
 
 
 def gsutil(*args, **kwargs):

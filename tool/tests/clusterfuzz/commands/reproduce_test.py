@@ -59,11 +59,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.ChromiumBuilder',
         'clusterfuzz.commands.reproduce.get_definition',
         'clusterfuzz.commands.reproduce.get_testcase',
-        'clusterfuzz.commands.reproduce.ensure_goma',
         'clusterfuzz.testcase.Testcase.get_testcase_path',
     ])
-    self.mock.ensure_goma.return_value = '/goma/dir'
-
     self.builder = mock.Mock(symbolizer_path='/path/to/symbolizer')
     self.reproducer = mock.Mock()
     self.definition = mock.Mock()
@@ -93,9 +90,9 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.assert_n_calls(0, [self.mock.ensure_goma])
     self.mock.DownloadedBinary.assert_called_once_with(
-        self.testcase.id, self.testcase.build_url, 'stacktrace_binary')
+        testcase=self.testcase, definition=self.definition,
+        options=self.options)
     self.definition.reproducer.assert_called_once_with(
         binary_provider=self.mock.DownloadedBinary.return_value,
         definition=self.definition,
@@ -116,9 +113,9 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.assert_n_calls(0, [self.mock.ensure_goma])
     self.mock.DownloadedBinary.assert_called_once_with(
-        self.testcase.id, self.testcase.build_url, 'defined_binary')
+        testcase=self.testcase, definition=self.definition,
+        options=self.options)
     self.definition.reproducer.assert_called_once_with(
         binary_provider=self.mock.DownloadedBinary.return_value,
         definition=self.definition,
@@ -131,10 +128,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     """Ensures all method calls are made correctly when building locally."""
     self.options.build = 'standalone'
     reproduce.execute(**vars(self.options))
-    self.options.goma_dir = '/goma/dir'
 
     self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.mock.ensure_goma.assert_called_once_with()
     self.definition.builder.assert_called_once_with(
         testcase=self.testcase,
         definition=self.definition,
@@ -367,38 +362,6 @@ class GetVerificationHeaderTest(helpers.ExtendedTestCase):
     self.assertEqual(response, 'VerificationCode 12345')
 
 
-class EnsureGomaTest(helpers.ExtendedTestCase):
-  """Tests the ensure_goma method."""
-
-  def setUp(self):
-    self.setup_fake_filesystem()
-    self.mock_os_environment(
-        {'GOMA_DIR': os.path.expanduser(os.path.join('~', 'goma'))})
-    helpers.patch(self, ['clusterfuzz.common.execute'])
-
-  def test_goma_not_installed(self):
-    """Tests what happens when GOMA is not installed."""
-
-    with self.assertRaises(error.GomaNotInstalledError) as ex:
-      reproduce.ensure_goma()
-      self.assertTrue('goma is not installed' in ex.message)
-
-  def test_goma_installed(self):
-    """Tests what happens when GOMA is installed."""
-
-    goma_dir = os.path.expanduser(os.path.join('~', 'goma'))
-    os.makedirs(goma_dir)
-    f = open(os.path.join(goma_dir, 'goma_ctl.py'), 'w')
-    f.close()
-
-    result = reproduce.ensure_goma()
-
-    self.assert_exact_calls(self.mock.execute, [
-        mock.call('python', 'goma_ctl.py ensure_start', goma_dir)
-    ])
-    self.assertEqual(result, goma_dir)
-
-
 class SuppressOutputTest(helpers.ExtendedTestCase):
   """Test SuppressOutput."""
 
@@ -444,7 +407,7 @@ class GetDefinitionTest(helpers.ExtendedTestCase):
         'chromium': {
             'libfuzzer_chrome_msan': common.Definition(
                 builder=binary_providers.ChromiumBuilder,
-                source_var='CHROMIUM_SRC',
+                source_name='chromium',
                 reproducer=reproducers.BaseReproducer,
                 binary_name=None,
                 sanitizer='MSAN',

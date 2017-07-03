@@ -36,6 +36,7 @@ CHECKOUT_MESSAGE = (
     'Shall we proceed with the following command:\n'
     '{cmd} in {source_dir}?')
 ARGS_GN_FILENAME = 'args.gn'
+GOMA_DIR = os.path.expanduser(os.path.join('~', 'goma'))
 
 
 logger = logging.getLogger('clusterfuzz')
@@ -137,12 +138,23 @@ def gclient_runhooks_msan(source_dir, msan_track_origins):
   )
 
 
-def setup_gn_goma_params(goma_dir, gn_args):
+def ensure_goma():
+  """Ensures GOMA is installed and ready for use, and starts it."""
+  goma_dir = os.environ.get('GOMA_DIR', GOMA_DIR)
+  if not os.path.isfile(os.path.join(goma_dir, 'goma_ctl.py')):
+    raise error.GomaNotInstalledError()
+
+  common.execute('python', 'goma_ctl.py ensure_start', goma_dir)
+  return goma_dir
+
+
+def setup_gn_goma_params(gn_args, disable_goma):
   """Ensures that goma_dir and gn_goma are used correctly."""
-  if not goma_dir:
+  if disable_goma:
     gn_args.pop('goma_dir', None)
     gn_args['use_goma'] = 'false'
   else:
+    goma_dir = ensure_goma()
     gn_args['use_goma'] = 'true'
     gn_args['goma_dir'] = '"%s"' % goma_dir
   return gn_args
@@ -219,13 +231,17 @@ def git_checkout(sha, revision, source_dir_path):
   common.execute(binary, args, source_dir_path)
 
 
-def compute_goma_cores(goma_threads, goma_dir):
+def compute_goma_cores(goma_threads, disable_goma):
   """Choose the correct amount of GOMA cores for a build."""
   if goma_threads:
     return goma_threads
 
   cpu_count = multiprocessing.cpu_count()
-  return 50 * cpu_count if goma_dir else (3 * cpu_count) / 4
+
+  if disable_goma:
+    return (3 * cpu_count) / 4
+  else:
+    return 50 * cpu_count
 
 
 def compute_goma_load(goma_load):
@@ -235,18 +251,47 @@ def compute_goma_load(goma_load):
   return multiprocessing.cpu_count() * 2
 
 
+def get_binary_name(stacktrace):
+  prefix = 'Running command: '
+  stacktrace_lines = [l['content'] for l in stacktrace]
+  for l in stacktrace_lines:
+    if prefix in l:
+      l = l.replace(prefix, '').split(' ')
+      binary_name = os.path.basename(l[0])
+      return binary_name
+
+  raise error.MinimizationNotFinishedError()
+
+
+def get_or_ask_for_source_location(source_name):
+  """Returns the location of the source directory."""
+
+  source_env = '%s_SRC' % source_name.upper()
+
+  if os.environ.get(source_env):
+    return os.environ.get(source_env)
+
+  message = ('This is a %(name)s testcase, please define %(env_name)s'
+             ' or enter your %(name)s source location here' %
+             {'name': source_name, 'env_name': source_env})
+
+  source_directory = common.get_valid_abs_dir(
+      common.ask(
+          message, 'Please enter a valid directory', common.get_valid_abs_dir))
+
+  return source_directory
+
+
 class BinaryProvider(object):
   """Downloads/builds and then provides the location of a binary."""
 
-  # TODO(tanin): BinaryProvider should also take the whole testcase, definition,
-  # and options.
-  def __init__(self, testcase_id, build_url, binary_name):
-    self.testcase_id = testcase_id
-    self.build_url = build_url
-    self.binary_name = binary_name
+  def __init__(self, testcase, definition, options):
+    self.testcase = testcase
+    self.definition = definition
+    self.options = options
 
   def get_binary_path(self):
-    return '%s/%s' % (self.get_build_dir_path(), self.binary_name)
+    return '%s/%s' % (self.get_build_dir_path(), self.definition.binary_name)
 
   def get_build_dir_path(self):
     """Return the build directory."""
@@ -260,41 +305,51 @@ class DownloadedBinary(BinaryProvider):
   def get_build_dir_path(self):
     """Returns the location of the correct build to use for reproduction."""
     path = os.path.join(
-        common.CLUSTERFUZZ_BUILDS_DIR, '%s_downloaded_build' % self.testcase_id)
-    download_build_if_needed(path, self.build_url, self.binary_name)
+        common.CLUSTERFUZZ_BUILDS_DIR, '%s_downloaded_build' % self.testcase.id)
+    # TODO(tanin): This doesn't work with libfuzzer or afl because there's no
+    # binary_name. This looks like we need to use the composition pattern.
+    # It's not a big deal right now because libfuzzer are often reproducible
+    # from source, so none uses this yet.
+    download_build_if_needed(
+        path, self.testcase.build_url, self.definition.binary_name)
     return path
 
   @common.memoize
   def get_source_dir_path(self):
     """Return the chromium source dir path."""
     # Need asan_symbolizer.py from Chromium's source code.
-    return common.get_source_directory('chromium')
+    return get_or_ask_for_source_location('chromium')
 
 
 class GenericBuilder(BinaryProvider):
   """Provides a base for binary builders."""
 
   def __init__(
-      self, source_name, testcase, definition, binary_name, target, options):
+      self, testcase, definition, options):
     """self.git_sha must be set in a subclass, or some of these
     instance methods may not work."""
     super(GenericBuilder, self).__init__(
-        testcase_id=testcase.id,
-        build_url=testcase.build_url,
-        binary_name=binary_name)
-    self.source_name = source_name
-    self.testcase = testcase
-    self.target = target if target else binary_name
-    self.options = options
-    # `extra_gn_args` should be moved into supported_job_types.yml.
+        testcase=testcase,
+        definition=definition,
+        options=options)
+    # These attributes don't need computation. Therefore, they are not methods.
     self.extra_gn_args = {}
     self.gn_gen_flags = '--check'
-    self.definition = definition
+
+  @common.memoize
+  def get_target_name(self):
+    """Get the target name."""
+    return self.definition.target
+
+  @common.memoize
+  def get_binary_name(self):
+    """Get the binary name."""
+    return self.definition.binary_name
 
   @common.memoize
   def get_source_dir_path(self):
     """Return the source dir path."""
-    return common.get_source_directory(self.source_name)
+    return get_or_ask_for_source_location(self.definition.source_name)
 
   def get_git_sha(self):
     """Return git sha."""
@@ -305,7 +360,7 @@ class GenericBuilder(BinaryProvider):
     """Return the correct out dir in which to build the revision.
       Directory name is of the format clusterfuzz_<testcase_id>_<git_sha>."""
     return os.path.join(
-        self.get_source_dir_path(), 'out', 'clusterfuzz_%s' % self.testcase_id)
+        self.get_source_dir_path(), 'out', 'clusterfuzz_%s' % self.testcase.id)
 
   @common.memoize
   def get_gn_args(self):
@@ -316,7 +371,7 @@ class GenericBuilder(BinaryProvider):
     for k, v in self.extra_gn_args.iteritems():
       args[k] = v
 
-    args = setup_gn_goma_params(self.options.goma_dir, args)
+    args = setup_gn_goma_params(args, self.options.disable_goma)
     args = setup_debug_symbol_if_needed(
         args, self.definition.sanitizer, self.options.enable_debug)
 
@@ -388,9 +443,9 @@ class GenericBuilder(BinaryProvider):
          '{target}'.format(
              build_dir=self.get_build_dir_path(),
              goma_cores=compute_goma_cores(
-                 self.options.goma_threads, self.options.goma_dir),
+                 self.options.goma_threads, self.options.disable_goma),
              goma_load=compute_goma_load(self.options.goma_load),
-             target=self.target)),
+             target=self.definition.target)),
         self.get_source_dir_path(),
         capture_output=False,
         stdout_transformer=output_transformer.Ninja())
@@ -401,11 +456,8 @@ class PdfiumBuilder(GenericBuilder):
 
   def __init__(self, testcase, definition, options):
     super(PdfiumBuilder, self).__init__(
-        source_name='Pdfium',
         testcase=testcase,
         definition=definition,
-        binary_name='pdfium_test',
-        target=None,
         options=options)
     self.extra_gn_args = {'pdf_is_standalone': 'true'}
     self.gn_gen_flags = ''
@@ -421,19 +473,9 @@ class ChromiumBuilder(GenericBuilder):
   """Builds a specific target from inside a Chromium source repository."""
 
   def __init__(self, testcase, definition, options):
-    target_name = None
-    binary_name = definition.binary_name
-    if definition.target:
-      target_name = definition.target
-    if not binary_name:
-      binary_name = common.get_binary_name(testcase.stacktrace_lines)
-
     super(ChromiumBuilder, self).__init__(
-        source_name='chromium',
         testcase=testcase,
         definition=definition,
-        binary_name=binary_name,
-        target=target_name,
         options=options)
 
   @common.memoize
@@ -454,16 +496,28 @@ class ChromiumBuilder(GenericBuilder):
     common.execute('gclient', 'runhooks', self.get_source_dir_path())
 
 
+class LibfuzzerAndAflBuilder(ChromiumBuilder):
+  """Build a libfuzzer or afl target. The target and binary_name are inferred
+    from the stacktrace."""
+
+  @common.memoize
+  def get_target_name(self):
+    """Get the target name for libfuzzer or afl."""
+    return get_binary_name(self.testcase.stacktrace_lines)
+
+  @common.memoize
+  def get_binary_name(self):
+    """Get the binary name."""
+    return self.get_target_name()
+
+
 class V8Builder(GenericBuilder):
   """Builds a fresh v8 binary."""
 
   def __init__(self, testcase, definition, options):
     super(V8Builder, self).__init__(
-        source_name='V8',
         testcase=testcase,
         definition=definition,
-        binary_name='d8',
-        target=None,
         options=options)
 
   @common.memoize

@@ -89,7 +89,7 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
         'clusterfuzz.common.ensure_dir',
         'clusterfuzz.common.gsutil',
-        'clusterfuzz.common.get_source_directory',
+        'clusterfuzz.binary_providers.get_or_ask_for_source_location',
         'os.remove',
         'os.rename',
         'os.chmod',
@@ -146,7 +146,10 @@ class GetBinaryPathTest(helpers.ExtendedTestCase):
         '~', 'chrome_src', 'out', '12345_build'))
     self.mock.get_build_dir_path.return_value = build_dir
 
-    provider = binary_providers.BinaryProvider(12345, 'build_url', 'd8')
+    provider = binary_providers.BinaryProvider(
+        libs.make_testcase(testcase_id=12345, build_url='build_url'),
+        libs.make_definition(binary_name='d8'),
+        libs.make_options())
     self.assertEqual(os.path.join(build_dir, 'd8'), provider.get_binary_path())
 
 
@@ -156,19 +159,19 @@ class DownloadedBinaryGetTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.download_build_if_needed',
-        'clusterfuzz.common.get_source_directory',
+        'clusterfuzz.binary_providers.get_or_ask_for_source_location',
     ])
-    self.build_url = 'https://storage.cloud.google.com/abc.zip'
-    self.binary_name = 'd8'
-    self.testcase_id = 12345
+    self.definition = libs.make_definition(binary_name='d8')
+    self.testcase = libs.make_testcase(
+        testcase_id=12345, build_url='https://storage.cloud.google.com/abc.zip')
     self.provider = binary_providers.DownloadedBinary(
-        self.testcase_id, self.build_url, self.binary_name)
+        testcase=self.testcase, definition=self.definition,
+        options=libs.make_options())
 
   def test_get_source_dir_path(self):
     """Test get_source_dir_path."""
-    self.mock.get_source_directory.return_value = '/src'
+    self.mock.get_or_ask_for_source_location.return_value = '/src'
     self.assertEqual('/src', self.provider.get_source_dir_path())
-
 
   def test_get_build_dir_path(self):
     """Test get_build_dir_path."""
@@ -177,24 +180,26 @@ class DownloadedBinaryGetTest(helpers.ExtendedTestCase):
 
     self.assertEqual(expected_path, self.provider.get_build_dir_path())
     self.mock.download_build_if_needed.assert_called_once_with(
-        expected_path, self.build_url, self.binary_name)
+        expected_path, self.testcase.build_url, self.definition.binary_name)
 
 
 class GenericBuilderGetSourceDirPathTest(helpers.ExtendedTestCase):
   """Test GenericBuilder.get_source_dir_path."""
 
   def setUp(self):
-    helpers.patch(self, ['clusterfuzz.common.get_source_directory'])
+    helpers.patch(self, [
+        'clusterfuzz.binary_providers.get_or_ask_for_source_location'
+    ])
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(),
-        libs.make_definition(source_var='source_var'), 'binary_name', 'target',
+        libs.make_testcase(), libs.make_definition(source_name='something'),
         libs.make_options())
 
   def test_get_from_user(self):
     """Test get the source location from user."""
-    self.mock.get_source_directory.return_value = '/path'
+    self.mock.get_or_ask_for_source_location.return_value = '/path'
     self.assertEqual('/path', self.builder.get_source_dir_path())
-    self.mock.get_source_directory.assert_called_once_with('source_name')
+    self.mock.get_or_ask_for_source_location.assert_called_once_with(
+        'something')
 
 
 class GenericBuilderGetBuildDirPathTest(helpers.ExtendedTestCase):
@@ -205,9 +210,8 @@ class GenericBuilderGetBuildDirPathTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path',
     ])
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(testcase_id='1234', revision='999'),
-        libs.make_definition(), 'binary_name', 'target',
-        libs.make_options(current=False))
+        libs.make_testcase(testcase_id='1234', revision='999'),
+        libs.make_definition(), libs.make_options(current=False))
 
   def test_get(self):
     """Test get."""
@@ -225,15 +229,14 @@ class GenericBuilderGetGnArgsTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.setup_gn_goma_params',
     ])
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(raw_gn_args='a=b\nc=d'),
-        libs.make_definition(sanitizer='ASAN'), 'binary_name', 'target',
-        libs.make_options(
-            current=False, goma_dir='/goma/dir', enable_debug=True)
+        libs.make_testcase(raw_gn_args='a=b\nc=d'),
+        libs.make_definition(sanitizer='ASAN'),
+        libs.make_options(current=False, enable_debug=True)
     )
     self.builder.extra_gn_args = {'e': 'f'}
 
     self.mock.setup_debug_symbol_if_needed.side_effect = lambda v, _1, _2: v
-    self.mock.setup_gn_goma_params.side_effect = lambda _, v: v
+    self.mock.setup_gn_goma_params.side_effect = lambda v, _: v
 
   def test_get(self):
     """Test getting gn_args."""
@@ -241,7 +244,7 @@ class GenericBuilderGetGnArgsTest(helpers.ExtendedTestCase):
     self.assertEqual(expected, self.builder.get_gn_args())
 
     self.mock.setup_gn_goma_params.assert_called_once_with(
-        '/goma/dir', expected)
+        expected, False)
     self.mock.setup_debug_symbol_if_needed.assert_called_once_with(
         expected, 'ASAN', True)
 
@@ -259,8 +262,8 @@ class GenericBuilderGnGenTest(helpers.ExtendedTestCase):
     ])
     self.setup_fake_filesystem()
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options(edit_mode=True))
+        libs.make_testcase(), libs.make_definition(),
+        libs.make_options(edit_mode=True))
 
     self.mock.edit_if_needed.side_effect = (
         lambda content, prefix, comment, should_edit: content)
@@ -290,8 +293,7 @@ class GenericBuilderInstallDepsTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options())
+        libs.make_testcase(), libs.make_definition(), libs.make_options())
 
   def test_install(self):
     """Test doing nothing."""
@@ -307,8 +309,7 @@ class GenericBuilderGclientSyncTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path',
     ])
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options())
+        libs.make_testcase(), libs.make_definition(), libs.make_options())
 
   def test_runhooks(self):
     """Test doing nothing"""
@@ -322,8 +323,7 @@ class GenericBuilderGclientRunhooksTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options())
+        libs.make_testcase(), libs.make_definition(), libs.make_options())
 
   def test_runhooks(self):
     """Test doing nothing"""
@@ -344,8 +344,8 @@ class GenericBuilderSetupAllDepsTest(helpers.ExtendedTestCase):
   def test_skip(self):
     """Test skip."""
     builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options(skip_deps=True))
+        libs.make_testcase(), libs.make_definition(),
+        libs.make_options(skip_deps=True))
     builder.setup_all_deps()
     self.assert_n_calls(0, [
         self.mock.gclient_sync,
@@ -355,12 +355,30 @@ class GenericBuilderSetupAllDepsTest(helpers.ExtendedTestCase):
   def test_run(self):
     """Test run."""
     builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(), libs.make_definition(),
-        'binary_name', 'target', libs.make_options(skip_deps=False))
+        libs.make_testcase(), libs.make_definition(),
+        libs.make_options(skip_deps=False))
     builder.setup_all_deps()
     self.mock.gclient_sync.assert_called_once_with(builder)
     self.mock.gclient_runhooks.assert_called_once_with(builder)
     self.mock.install_deps.assert_called_once_with(builder)
+
+
+class GenericBuilderGetTargetNameAndBinaryNameTest(helpers.ExtendedTestCase):
+  """Test get_target_name and get_binary_name."""
+
+  def setUp(self):
+    self.builder = binary_providers.GenericBuilder(
+        libs.make_testcase(),
+        libs.make_definition(binary_name='binary', target='d8'),
+        libs.make_options())
+
+  def test_get_target_name(self):
+    """Test get_target_name."""
+    self.assertEqual('d8', self.builder.get_target_name())
+
+  def test_get_binary_name(self):
+    """Test get_binary_name."""
+    self.assertEqual('binary', self.builder.get_binary_name())
 
 
 class GenericBuilderBuildTest(helpers.ExtendedTestCase):
@@ -379,8 +397,8 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
     ])
     self.builder = binary_providers.GenericBuilder(
-        'source_name', libs.make_testcase(revision=213), libs.make_definition(),
-        'binary_name', 'd8', libs.make_options(current=False))
+        libs.make_testcase(revision=213), libs.make_definition(target='d8'),
+        libs.make_options(current=False))
 
   def test_build(self):
     """Test build"""
@@ -532,7 +550,7 @@ class ChromiumBuilderTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.sha_from_revision',
         'clusterfuzz.common.execute',
-        'clusterfuzz.common.get_binary_name',
+        'clusterfuzz.binary_providers.get_binary_name',
         'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path'
     ])
     self.mock.get_source_dir_path.return_value = '/src'
@@ -735,15 +753,15 @@ class ComputeGomaCoresTest(helpers.ExtendedTestCase):
 
   def test_specifying_goma_threads(self):
     """Ensures that if cores are manually specified, they are used."""
-    self.assertEqual(binary_providers.compute_goma_cores(500, 'dir'), 500)
+    self.assertEqual(binary_providers.compute_goma_cores(500, False), 500)
 
   def test_not_specifying_goma_threads(self):
     """Test not specifying goma threads."""
-    self.assertEqual(binary_providers.compute_goma_cores(None, 'dir'), 3200)
+    self.assertEqual(binary_providers.compute_goma_cores(None, False), 3200)
 
   def test_disable_goma(self):
     """Test disabling goma."""
-    self.assertEqual(binary_providers.compute_goma_cores(None, None), 48)
+    self.assertEqual(binary_providers.compute_goma_cores(None, True), 48)
 
 
 class ComputeGomaLoadTest(helpers.ExtendedTestCase):
@@ -887,14 +905,129 @@ class GclientRunhooksMsanTest(helpers.ExtendedTestCase):
 class SetupGnGomaParamsTest(helpers.ExtendedTestCase):
   """Tests setup_gn_goma_params."""
 
-  def test_enable(self):
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.binary_providers.ensure_goma'])
+
+  def test_disable(self):
     """Test enabling goma"""
     self.assertEqual(
         {'use_goma': 'false', 'a': 'b'},
-        binary_providers.setup_gn_goma_params(None, {'a': 'b'}))
+        binary_providers.setup_gn_goma_params({'a': 'b'}, disable_goma=True))
+    self.assertEqual(0, self.mock.ensure_goma.call_count)
 
-  def test_disable(self):
+  def test_enable(self):
     """Test read from file."""
+    self.mock.ensure_goma.return_value = '/path'
     self.assertEqual(
         {'use_goma': 'true', 'goma_dir': '"/path"', 'a': 'b'},
-        binary_providers.setup_gn_goma_params('/path', {'a': 'b'}))
+        binary_providers.setup_gn_goma_params({'a': 'b'}, disable_goma=False))
+    self.mock.ensure_goma.assert_called_once_with()
+
+
+class EnsureGomaTest(helpers.ExtendedTestCase):
+  """Tests the ensure_goma method."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+    self.mock_os_environment(
+        {'GOMA_DIR': os.path.expanduser(os.path.join('~', 'goma'))})
+    helpers.patch(self, ['clusterfuzz.common.execute'])
+
+  def test_goma_not_installed(self):
+    """Tests what happens when GOMA is not installed."""
+
+    with self.assertRaises(error.GomaNotInstalledError) as ex:
+      binary_providers.ensure_goma()
+      self.assertTrue('goma is not installed' in ex.message)
+
+  def test_goma_installed(self):
+    """Tests what happens when GOMA is installed."""
+
+    goma_dir = os.path.expanduser(os.path.join('~', 'goma'))
+    os.makedirs(goma_dir)
+    f = open(os.path.join(goma_dir, 'goma_ctl.py'), 'w')
+    f.close()
+
+    result = binary_providers.ensure_goma()
+
+    self.assert_exact_calls(self.mock.execute, [
+        mock.call('python', 'goma_ctl.py ensure_start', goma_dir)
+    ])
+    self.assertEqual(result, goma_dir)
+
+
+class LibfuzzerAndAflBuilderTest(helpers.ExtendedTestCase):
+  """Test LibfuzzerAndAflBuilder's methods."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.binary_providers.get_binary_name'])
+    self.builder = binary_providers.LibfuzzerAndAflBuilder(
+        libs.make_testcase(stacktrace_lines='trace'), libs.make_definition(),
+        libs.make_options())
+    self.mock.get_binary_name.return_value = 'target'
+
+  def test_get_target_name(self):
+    """Test get_target_name."""
+    self.assertEqual('target', self.builder.get_target_name())
+    self.mock.get_binary_name.assert_called_once_with('trace')
+
+  def test_get_binary_name(self):
+    """Test get_target_name."""
+    self.assertEqual('target', self.builder.get_binary_name())
+    self.mock.get_binary_name.assert_called_once_with('trace')
+
+
+class GetBinaryNameTest(helpers.ExtendedTestCase):
+  """Test get_binary_name."""
+
+  def test_running_command(self):
+    """Test 'Running Command: '."""
+    binary_name = binary_providers.get_binary_name([
+        {'content': 'aaa'},
+        {'content': 'Running command: aaa/bbb/some_fuzzer something'},
+        {'content': 'bbb'}
+    ])
+    self.assertEqual('some_fuzzer', binary_name)
+
+  def test_no_command(self):
+    """Raise an exception when there's no command."""
+    with self.assertRaises(error.MinimizationNotFinishedError):
+      binary_providers.get_binary_name([{'content': 'aaa'}])
+
+
+class GetSourceDirectoryTest(helpers.ExtendedTestCase):
+  """Tests the get_source_directory method."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+    helpers.patch(self, ['clusterfuzz.common.ask'])
+    self.source_dir = '~/chromium/src'
+
+  def test_get_from_environment(self):
+    """Tests getting the source directory from the os environment."""
+
+    self.mock_os_environment({'CHROMIUM_SRC': self.source_dir})
+    result = binary_providers.get_or_ask_for_source_location('chromium')
+
+    self.assertEqual(result, self.source_dir)
+    self.assertEqual(0, self.mock.ask.call_count)
+
+  def test_ask_and_expand_user(self):
+    """Tests getting the source directory and expand user."""
+
+    self.mock_os_environment({'CHROMIUM_SRC': ''})
+    os.makedirs(os.path.expanduser('~/test-dir'))
+    self.mock.ask.return_value = '~/test-dir'
+
+    result = binary_providers.get_or_ask_for_source_location('chromium')
+    self.assertEqual(os.path.expanduser('~/test-dir'), result)
+
+  def test_ask_and_expand_path(self):
+    """Tests getting the source directory and expand abspath."""
+
+    self.mock_os_environment({'CHROMIUM_SRC': ''})
+    os.makedirs(os.path.abspath('./test-dir'))
+    self.mock.ask.return_value = './test-dir'
+
+    result = binary_providers.get_or_ask_for_source_location('chromium')
+    self.assertEqual(os.path.abspath('./test-dir'), result)

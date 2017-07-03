@@ -2,29 +2,32 @@ presets: #Any parameters in a preset can be overridden in the actual definition
          #but are taken as default otherwise.
         pdfium_standalone:
             builder: Pdfium
-            source: PDFIUM_SRC
+            source_name: pdfium
             binary: pdfium_test
+            target: pdfium_test
             reproducer: Base
         pdfium_chromium:
             preset: pdfium_standalone
             builder: Chromium
-            source: CHROMIUM_SRC
         d8_standalone:
             builder: V8
-            source: V8_SRC
+            source_name: v8
             binary: d8
+            target: d8
             reproducer: Base
         linux_asan_d8_standalone:
             preset: d8_standalone
             sanitizer: ASAN
         chromium:
             builder: Chromium
-            source: CHROMIUM_SRC
+            source_name: chromium
             reproducer: Base
         afl:
             preset: chromium
+            builder: Afl
         libfuzzer:
             preset: chromium
+            builder: Libfuzzer
             reproducer: LibfuzzerJob
         linux:
             preset: chromium

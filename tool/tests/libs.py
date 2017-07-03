@@ -44,7 +44,7 @@ def make_testcase(
 
 def make_definition(
     builder=binary_providers.ChromiumBuilder,
-    source_var='chromium',
+    source_name='chromium',
     reproducer=reproducers.LinuxChromeJobReproducer,
     binary_name='chrome',
     sanitizer='ASAN',
@@ -53,7 +53,7 @@ def make_definition(
   """Make a definition."""
   return common.Definition(
       builder=builder,
-      source_var=source_var,
+      source_name=source_name,
       reproducer=reproducer,
       binary_name=binary_name,
       sanitizer=sanitizer,
@@ -73,8 +73,7 @@ def make_options(
     target_args=None,
     edit_mode=False,
     skip_deps=False,
-    enable_debug=False,
-    goma_dir=None):
+    enable_debug=False):
   """Make an option."""
   return common.Options(
       testcase_id=testcase_id,
@@ -88,5 +87,4 @@ def make_options(
       target_args=target_args,
       edit_mode=edit_mode,
       skip_deps=skip_deps,
-      enable_debug=enable_debug,
-      goma_dir=goma_dir)
+      enable_debug=enable_debug)

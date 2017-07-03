@@ -33,7 +33,6 @@ from error import error
 CLUSTERFUZZ_AUTH_HEADER = 'x-clusterfuzz-authorization'
 CLUSTERFUZZ_TESTCASE_INFO_URL = (
     'https://%s/v2/testcase-detail/refresh' % common.DOMAIN_NAME)
-GOMA_DIR = os.path.expanduser(os.path.join('~', 'goma'))
 GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?%s' % (
     urllib.urlencode({
         'scope': 'email profile',
@@ -125,17 +124,6 @@ def get_testcase(testcase_id):
       raise e
 
 
-def ensure_goma():
-  """Ensures GOMA is installed and ready for use, and starts it."""
-
-  goma_dir = os.environ.get('GOMA_DIR', GOMA_DIR)
-  if not os.path.isfile(os.path.join(goma_dir, 'goma_ctl.py')):
-    raise error.GomaNotInstalledError()
-
-  common.execute('python', 'goma_ctl.py ensure_start', goma_dir)
-  return goma_dir
-
-
 def parse_job_definition(job_definition, presets):
   """Reads in a job definition hash and parses it."""
 
@@ -162,6 +150,8 @@ def build_definition(job_definition, presets):
       'Pdfium': binary_providers.PdfiumBuilder,
       'V8': binary_providers.V8Builder,
       'V8_32': binary_providers.V8Builder32Bit,
+      'Afl': binary_providers.LibfuzzerAndAflBuilder,
+      'Libfuzzer': binary_providers.LibfuzzerAndAflBuilder
   }
   reproducer_map = {'Base': reproducers.BaseReproducer,
                     'LibfuzzerJob': reproducers.LibfuzzerJobReproducer,
@@ -171,10 +161,10 @@ def build_definition(job_definition, presets):
 
   return common.Definition(
       builder=builders[result['builder']],
-      source_var=result['source'],
+      source_name=result['source_name'],
       reproducer=reproducer_map[result['reproducer']],
       binary_name=result.get('binary'),
-      sanitizer=result.get('sanitizer'),
+      sanitizer=result['sanitizer'],
       target=result.get('target'),
       require_user_data_dir=result.get('require_user_data_dir', False))
 
@@ -195,9 +185,9 @@ def get_supported_jobs():
       try:
         to_return[build_type][job_type] = build_definition(
             job_definition, job_types_yaml['presets'])
-      except KeyError:
+      except KeyError as e:
         raise error.BadJobTypeDefinitionError(
-            '%s %s' % (build_type, job_type))
+            '%s %s (%s)' % (build_type, job_type, e))
 
   return to_return
 
@@ -232,7 +222,7 @@ def warn_unreproducible_if_needed(current_testcase):
 @stackdriver_logging.log
 def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
             iterations, disable_xvfb, target_args, edit_mode, skip_deps,
-            enable_debug, goma_dir=None):
+            enable_debug):
   """Execute the reproduce command."""
   options = common.Options(
       testcase_id=testcase_id,
@@ -246,8 +236,7 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
       target_args=target_args,
       edit_mode=edit_mode,
       skip_deps=skip_deps,
-      enable_debug=enable_debug,
-      goma_dir=goma_dir)
+      enable_debug=enable_debug)
 
   logger.info('Reproducing testcase %s', testcase_id)
   logger.debug('%s', str(options))
@@ -259,13 +248,10 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
 
   if build == 'download':
     binary_provider = binary_providers.DownloadedBinary(
-        testcase_id=current_testcase.id,
-        build_url=current_testcase.build_url,
-        binary_name=(
-            definition.binary_name or
-            common.get_binary_name(current_testcase.stacktrace_lines)))
+        testcase=current_testcase,
+        definition=definition,
+        options=options)
   else:
-    options.goma_dir = None if options.disable_goma else ensure_goma()
     binary_provider = definition.builder(
         testcase=current_testcase,
         definition=definition,
