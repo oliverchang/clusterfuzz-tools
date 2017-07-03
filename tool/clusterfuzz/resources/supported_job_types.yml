@@ -52,6 +52,10 @@ presets: #Any parameters in a preset can be overridden in the actual definition
         linux_asan_content_shell:
             preset: linux_content_shell
             sanitizer: ASAN
+        android:
+            preset: linux_chromium
+            binary: chrome
+            target: chrome_public_apk
 standalone:
         linux_asan_d8: { preset: linux_asan_d8_standalone }
         linux_asan_d8_dbg: { preset: linux_asan_d8_standalone }
@@ -95,4 +99,5 @@ chromium:
         linux_ubsan_vptr_chrome: { preset: linux_chromium, sanitizer: UBSAN }
         linux_ubsan_vptr_content_shell_drt: { preset: linux_content_shell, sanitizer: UBSAN }
         linux_ubsan_vptr_d8: { preset: linux_d8_chromium, sanitizer: UBSAN }
+        android_asan_chrome_latest: { preset: android, sanitizer: ASAN }
 
