@@ -291,11 +291,16 @@ class BinaryProvider(object):
     self.options = options
 
   def get_binary_path(self):
-    return '%s/%s' % (self.get_build_dir_path(), self.definition.binary_name)
+    return '%s/%s' % (self.get_build_dir_path(), self.get_binary_name())
 
   def get_build_dir_path(self):
     """Return the build directory."""
     raise NotImplementedError
+
+  @common.memoize
+  def get_binary_name(self):
+    """Get the binary name."""
+    return self.definition.binary_name
 
 
 class DownloadedBinary(BinaryProvider):
@@ -311,7 +316,7 @@ class DownloadedBinary(BinaryProvider):
     # It's not a big deal right now because libfuzzer are often reproducible
     # from source, so none uses this yet.
     download_build_if_needed(
-        path, self.testcase.build_url, self.definition.binary_name)
+        path, self.testcase.build_url, self.get_binary_name())
     return path
 
   @common.memoize
@@ -340,11 +345,6 @@ class GenericBuilder(BinaryProvider):
   def get_target_name(self):
     """Get the target name."""
     return self.definition.target
-
-  @common.memoize
-  def get_binary_name(self):
-    """Get the binary name."""
-    return self.definition.binary_name
 
   @common.memoize
   def get_source_dir_path(self):
@@ -445,7 +445,7 @@ class GenericBuilder(BinaryProvider):
              goma_cores=compute_goma_cores(
                  self.options.goma_threads, self.options.disable_goma),
              goma_load=compute_goma_load(self.options.goma_load),
-             target=self.definition.target)),
+             target=self.get_target_name())),
         self.get_source_dir_path(),
         capture_output=False,
         stdout_transformer=output_transformer.Ninja())
