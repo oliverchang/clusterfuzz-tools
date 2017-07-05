@@ -206,26 +206,22 @@ def read_logs(path=CLUSTERFUZZ_LOG_PATH):
 
 
 def clean():
-  """Clean all repos. The sub-repos are git-ignored.
-    Therefore, git-clean doesn't work. We can't do `git clean -x` either
-    because we would need to pull everything again and hit git's rate limit.
-    Therefore, we go into each child (which is a git repo) and run
-    clean the repo manually."""
-  for root, dirs, _ in os.walk(CHROMIUM_SRC):
-    for name in dirs:
-      basename = os.path.basename(name)
-      if basename != '.git':
-        continue
-
-      parent = os.path.dirname(name)
-      process.call('git clean -ffdd', cwd=os.path.join(root, parent))
-      process.call('git checkout HEAD -f', cwd=os.path.join(root, parent))
-
-  # The last checkout ensures the root is cleaned. Anecdotally, we have
-  # encountered a dilemma where cleaning the root litters a sub-repo (e.g.
-  # testing/gmock) and vice versa. But cleaning the root is more important.
+  """Clean the repo and all of the sub repos. This combination seems to
+    work. Please be careful when changing it."""
   process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
-  process.call('git checkout HEAD -f', cwd=CHROMIUM_SRC)
+  process.call('git reset --hard', cwd=CHROMIUM_SRC)
+
+  # --reset resets all uncommitted changes in the sub repo.
+  process.call(
+      'gclient sync --reset',
+      cwd=CHROMIUM_SRC,
+      env={'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)},
+  )
+
+  # Clean again because, sometimes, `gclient sync` makes the repo dirty.
+  process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
+  process.call('git reset --hard', cwd=CHROMIUM_SRC)
+
 
 def reset_and_run_testcase(testcase_id, category, release):
   """Resets the chromium repo and runs the testcase."""

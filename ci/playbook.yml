@@ -75,6 +75,25 @@
         executable: /bin/bash
 
 
+- name: Setup git account
+  hosts: instances
+  connection: ssh
+  become: true
+  become_user: clusterfuzz
+  tasks:
+    # TODO(tanin): Get gitcookies for the service account.
+    - name: Copy ~/.gitcookies
+      copy:
+        src: /google/data/rw/teams/clusterfuzz-tools/credentials/chromium-gitcookies
+        dest: ~/.gitcookies
+        force: yes
+        group: clusterfuzz
+        owner: clusterfuzz
+        mode: 0600
+    - name: Set git cookies
+      shell: git config --global http.cookiefile ~/.gitcookies
+
+
 - name: Setup python-daemon (runit service, folder, log folder, and service)
   hosts: instances
   connection: ssh
@@ -150,7 +169,8 @@
         mode: 'u=rwx,g=rwx,o=rwx'
       with_items:
         - { src: '/etc/sv/python-daemon', dest: '/etc/service/python-daemon' }
-    - shell: "sv restart python-daemon"
+    - name: Restarting the daemon.
+      shell: "sv restart python-daemon"
       retries: 10
       delay: 1
       register: restart_result

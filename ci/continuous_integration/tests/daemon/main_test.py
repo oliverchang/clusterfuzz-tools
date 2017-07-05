@@ -388,42 +388,19 @@ class CleanTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     self.setup_fake_filesystem()
+    self.mock_os_environment({'PATH': 'some_path'})
     helpers.patch(self, ['daemon.process.call'])
 
   def test_clean(self):
     """Test clean every git repo."""
-    third_party_path = os.path.join(main.CHROMIUM_SRC, 'third_party')
-    os.makedirs(third_party_path)
-    os.makedirs(os.path.join(main.CHROMIUM_SRC, '.git'))
-    os.makedirs(os.path.join(third_party_path, 'one_git'))
-    os.makedirs(os.path.join(third_party_path, 'one_git', '.git'))
-    os.makedirs(os.path.join(third_party_path, 'another_git'))
-    os.makedirs(os.path.join(third_party_path, 'another_git', '.git'))
-    os.makedirs(os.path.join(third_party_path, 'not_git'))
-    os.makedirs(os.path.join(third_party_path, 'not_another_git'))
-    os.makedirs(os.path.join(third_party_path, 'not_git', 'sub_git'))
-    os.makedirs(os.path.join(third_party_path, 'not_git', 'sub_git', '.git'))
-    os.makedirs(os.path.join(third_party_path, 'not_git', 'not_sub_git'))
-
     main.clean()
 
     self.assert_exact_calls(self.mock.call, [
-        mock.call('git clean -ffdd',
-                  cwd=os.path.join(main.CHROMIUM_SRC, '')),
-        mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(main.CHROMIUM_SRC, '')),
-        mock.call('git clean -ffdd',
-                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
-        mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'not_git', 'sub_git', '')),
-        mock.call('git clean -ffdd',
-                  cwd=os.path.join(third_party_path, 'one_git', '')),
-        mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'one_git', '')),
-        mock.call('git clean -ffdd',
-                  cwd=os.path.join(third_party_path, 'another_git', '')),
-        mock.call('git checkout HEAD -f',
-                  cwd=os.path.join(third_party_path, 'another_git', '')),
         mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
-        mock.call('git checkout HEAD -f', cwd=main.CHROMIUM_SRC),
+        mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
+        mock.call(
+            'gclient sync --reset', cwd=main.CHROMIUM_SRC,
+            env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),
+        mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
+        mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
     ])
