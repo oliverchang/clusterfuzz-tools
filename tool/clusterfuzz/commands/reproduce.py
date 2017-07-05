@@ -151,7 +151,8 @@ def build_definition(job_definition, presets):
       'V8': binary_providers.V8Builder,
       'V8_32': binary_providers.V8Builder32Bit,
       'Afl': binary_providers.LibfuzzerAndAflBuilder,
-      'Libfuzzer': binary_providers.LibfuzzerAndAflBuilder
+      'Libfuzzer': binary_providers.LibfuzzerAndAflBuilder,
+      'LibfuzzerMsanChromium': binary_providers.LibfuzzerMsanBuilder
   }
   reproducer_map = {'Base': reproducers.BaseReproducer,
                     'LibfuzzerJob': reproducers.LibfuzzerJobReproducer,

@@ -252,6 +252,7 @@ def compute_goma_load(goma_load):
 
 
 def get_binary_name(stacktrace):
+  """Get the binary name from stacktrace lines."""
   prefix = 'Running command: '
   stacktrace_lines = [l['content'] for l in stacktrace]
   for l in stacktrace_lines:
@@ -587,3 +588,7 @@ class V8Builder32Bit(V8Builder):
     """Install other deps."""
     super(V8Builder32Bit, self).install_deps()
     install_build_deps_32bit(self.get_source_dir_path())
+
+
+class LibfuzzerMsanBuilder(MsanChromiumBuilder, LibfuzzerAndAflBuilder):
+  """Build libfuzzer_chrome_msan."""

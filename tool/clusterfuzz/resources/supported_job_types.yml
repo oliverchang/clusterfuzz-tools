@@ -74,7 +74,7 @@ chromium:
         afl_chrome_asan: { preset: afl, sanitizer: ASAN }
         libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
-        libfuzzer_chrome_msan: { preset: libfuzzer, builder: MsanChromium, sanitizer: MSAN }
+        libfuzzer_chrome_msan: { preset: libfuzzer, builder: LibfuzzerMsanChromium, sanitizer: MSAN }
         libfuzzer_chrome_ubsan: { preset: libfuzzer, sanitizer: UBSAN }
         linux_asan_chrome_chromeos: { preset: linux_asan_chromium }
         linux_asan_chrome_gpu: { preset: linux_asan_chromium }
