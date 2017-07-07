@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import os
-import sys
 import tempfile
 import yaml
 
@@ -36,6 +35,7 @@ class MainTest(helpers.ExtendedTestCase):
         'daemon.main.prepare_binary_and_get_version',
         'time.sleep'
     ])
+    self.mock_os_environment({'RELEASE': 'release-test'})
     self.setup_fake_filesystem()
     self.mock.load_sanity_check_testcase_ids.return_value = [1, 2]
     self.mock.load_new_testcases.side_effect = [
@@ -56,14 +56,14 @@ class MainTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.load_new_testcases, [mock.call(),
                                                            mock.call()])
     self.assert_exact_calls(self.mock.reset_and_run_testcase, [
-        mock.call(1, 'sanity', sys.argv[1]),
-        mock.call(2, 'sanity', sys.argv[1]),
-        mock.call(3, 'job', sys.argv[1]),
-        mock.call(4, 'job', sys.argv[1]),
-        mock.call(5, 'job', sys.argv[1])])
+        mock.call(1, 'sanity', 'release-test'),
+        mock.call(2, 'sanity', 'release-test'),
+        mock.call(3, 'job', 'release-test'),
+        mock.call(4, 'job', 'release-test'),
+        mock.call(5, 'job', 'release-test')])
     self.assertEqual(2, self.mock.update_auth_header.call_count)
     self.mock.prepare_binary_and_get_version.assert_called_once_with(
-        sys.argv[1])
+        'release-test')
 
 
 class RunTestcaseTest(helpers.ExtendedTestCase):
@@ -398,9 +398,13 @@ class CleanTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.call, [
         mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
         mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
+        mock.call('git add --all', cwd=main.CHROMIUM_SRC),
+        mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
         mock.call(
             'gclient sync --reset', cwd=main.CHROMIUM_SRC,
             env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),
         mock.call('git clean -ffdd', cwd=main.CHROMIUM_SRC),
+        mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
+        mock.call('git add --all', cwd=main.CHROMIUM_SRC),
         mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
     ])

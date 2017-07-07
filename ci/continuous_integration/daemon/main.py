@@ -3,7 +3,6 @@
 import collections
 import os
 import shutil
-import sys
 import time
 import yaml
 
@@ -24,7 +23,6 @@ CLUSTERFUZZ_CACHE_DIR = os.path.join(CLUSTERFUZZ_DIR, 'cache')
 AUTH_FILE_LOCATION = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'auth_header')
 CHROMIUM_SRC = os.path.join(HOME, 'chromium', 'src')
 CHROMIUM_OUT = os.path.join(CHROMIUM_SRC, 'out')
-RELEASE_ENV = os.path.join(HOME, 'RELEASE_ENV')
 DEPOT_TOOLS = os.path.join(HOME, 'depot_tools')
 SANITY_CHECKS = os.path.join(os.path.dirname(__file__), 'sanity_checks.yml')
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
@@ -38,7 +36,7 @@ PROCESSED_TESTCASE_IDS = LRUCacheDict(max_size=1000, expiration=172800)
 TEST_OPTIONS = ['', '--current --skip-deps']
 
 # The number of seconds to sleep after each test run to avoid DDOS.
-SLEEP_TIME = 30
+SLEEP_TIME = 60
 
 Testcase = collections.namedtuple('Testcase', ['id', 'job_type'])
 
@@ -210,6 +208,12 @@ def clean():
     work. Please be careful when changing it."""
   process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
   process.call('git reset --hard', cwd=CHROMIUM_SRC)
+  # We've encountered the case where `git clean` and `git reset --hard` don't
+  # clean up the untracked files. I have no idea why. Tracking the files and
+  # resetting seems to work.
+  # See: https://github.com/google/clusterfuzz-tools/issues/414
+  process.call('git add --all', cwd=CHROMIUM_SRC)
+  process.call('git reset --hard', cwd=CHROMIUM_SRC)
 
   # --reset resets all uncommitted changes in the sub repo.
   process.call(
@@ -220,6 +224,8 @@ def clean():
 
   # Clean again because, sometimes, `gclient sync` makes the repo dirty.
   process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
+  process.call('git reset --hard', cwd=CHROMIUM_SRC)
+  process.call('git add --all', cwd=CHROMIUM_SRC)
   process.call('git reset --hard', cwd=CHROMIUM_SRC)
 
 
@@ -243,7 +249,7 @@ def reset_and_run_testcase(testcase_id, category, release):
 
 
 def main():
-  release = sys.argv[1]
+  release = os.environ['RELEASE']
 
   # For master, we need to build the binary beforehand because we might
   # check the job type using the binary.

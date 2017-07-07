@@ -1,6 +1,5 @@
 #!/bin/bash
 sleep 30
-ulimit -n 1000000  # Increase the open-file limit. See #261.
-source /etc/environment
 exec 2>&1
-exec chpst -u clusterfuzz /python-daemon/daemon.pex $RELEASE
+# `-o` increases the open-file limit. See #261.
+exec chpst -u clusterfuzz -o 1000000 -e /python-daemon-data/env /python-daemon/daemon.pex

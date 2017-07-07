@@ -25,7 +25,8 @@ class SendLogTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'daemon.stackdriver_logging.ServiceAccountCredentials'])
+        'daemon.stackdriver_logging.GoogleCredentials'])
+    self.mock_os_environment({'PROJECT_ID': 'clusterfuzz-tools'})
 
   def test_send_structure(self):
     """Ensures that the correct request structure is sent."""
@@ -50,10 +51,12 @@ class SendLogTest(helpers.ExtendedTestCase):
     stackdriver_logging.send_log(params, False)
 
     self.assert_exact_calls(
-        (self.mock.ServiceAccountCredentials.from_json_keyfile_name
-         .return_value.authorize.return_value.request), [mock.call(
-             uri='https://logging.googleapis.com/v2/entries:write',
-             method='POST', body=json.dumps(structure))])
+        (self.mock.GoogleCredentials.get_application_default.return_value
+         .authorize.return_value.request),
+        [mock.call(
+            uri='https://logging.googleapis.com/v2/entries:write',
+            method='POST', body=json.dumps(structure))]
+    )
 
 
 class SendRunTest(helpers.ExtendedTestCase):

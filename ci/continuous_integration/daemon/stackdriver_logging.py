@@ -1,29 +1,24 @@
 """Sends the results of CI testing to stackdriver."""
 
 import json
+import os
 
 from httplib2 import Http
-from oauth2client.service_account import ServiceAccountCredentials
+from oauth2client.client import GoogleCredentials
 from error import error
 
 
 def send_log(params, success):
   """Send a log to Stackdriver with the result of a testcase run."""
-
-  scopes = ['https://www.googleapis.com/auth/logging.write']
-  filename = '/python-daemon/service-account-credentials.json'
-
-  credentials = ServiceAccountCredentials.from_json_keyfile_name(
-      filename, scopes=scopes)
-
+  credentials = GoogleCredentials.get_application_default()
   http_auth = credentials.authorize(Http())
 
   structure = {
-      'logName': 'projects/clusterfuzz-tools/logs/ci',
+      'logName': 'projects/%s/logs/ci' % os.environ['PROJECT_ID'],
       'resource': {
           'type': 'project',
           'labels': {
-              'project_id': 'clusterfuzz-tools'}},
+              'project_id': os.environ['PROJECT_ID']}},
       'entries': [{
           'jsonPayload': params,
           'severity': 'INFO' if success else 'ERROR'}]}

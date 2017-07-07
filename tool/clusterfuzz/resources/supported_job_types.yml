@@ -8,6 +8,7 @@ presets: #Any parameters in a preset can be overridden in the actual definition
             reproducer: Base
         pdfium_chromium:
             preset: pdfium_standalone
+            source_name: chromium
             builder: Chromium
         d8_standalone:
             builder: V8

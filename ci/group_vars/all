@@ -3,12 +3,12 @@
 # Increment the number when modifying the image.
 image_name: chromium-image-4
 
-project_id: 981641712411
+project_id: clusterfuzz-tools
 zone: us-central1-a
-
-service_account_email: ci-round-2@clusterfuzz-tools.iam.gserviceaccount.com
-credentials_file: /auto/FuzzInfrastructure/clusterfuzz-tools/clusterfuzz-tools-ci-credentials.json
-
 size_gb: 100
 
+service_account_email: ci-round-2@clusterfuzz-tools.iam.gserviceaccount.com
+credentials_file: /google/data/ro/teams/clusterfuzz-tools/credentials/clusterfuzz-tools-ci-credentials-2.json
+
+gitcookies_path: /google/data/ro/teams/clusterfuzz-tools/credentials/chromium-gitcookies
 goma_dir: "{{lookup('env', 'GOMA_DIR')|default('~/goma', true)}}"
