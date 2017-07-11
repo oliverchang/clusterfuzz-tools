@@ -15,6 +15,7 @@
 
 import os
 import zipfile
+import time
 import logging
 
 from clusterfuzz import common
@@ -24,6 +25,9 @@ CLUSTERFUZZ_TESTCASE_URL = (
     'https://%s/v2/testcase-detail/download-testcase?id=%s' %
     (common.DOMAIN_NAME, '%s'))
 DOWNLOAD_TIMEOUT = 100
+TESTCASE_CACHE_TTL = 6 * 60 * 60  # The testcase file is cached for 6 hours.
+
+
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -77,6 +81,28 @@ def get_environment_and_args(stacktrace_lines):
       args = " ".join(line)
 
   return new_env, args
+
+
+def download_testcase_if_needed(url, dest_dir):
+  """Download a file into the dest_dir with caching. dest_dir must be safe to
+    be deleted."""
+  if (os.path.exists(dest_dir) and
+      (time.time() - os.stat(dest_dir).st_ctime) <= TESTCASE_CACHE_TTL):
+    return
+
+  common.delete_if_exists(dest_dir)
+  os.makedirs(dest_dir)
+
+  logger.info('Downloading testcase files...')
+
+  auth_header = common.get_stored_auth_header()
+  # Do not use curl because curl doesn't support downloading an empty file.
+  # See: https://github.com/google/clusterfuzz-tools/issues/326
+  args = (
+      '--no-verbose --waitretry=%s --retry-connrefused --content-disposition '
+      '--header="Authorization: %s" "%s"' %
+      (DOWNLOAD_TIMEOUT, auth_header, url))
+  common.execute('wget', args, dest_dir)
 
 
 def create(testcase_json):
@@ -150,19 +176,8 @@ class Testcase(object):
   @common.memoize
   def get_testcase_path(self):
     """Downloads & returns the location of the testcase file."""
-    common.delete_if_exists(self.testcase_dir_path)
-    os.makedirs(self.testcase_dir_path)
+    download_testcase_if_needed(
+        CLUSTERFUZZ_TESTCASE_URL % self.id, self.testcase_dir_path)
 
-    logger.info('Downloading testcase files...')
-
-    auth_header = common.get_stored_auth_header()
-    # Do not use curl because curl doesn't support downloading an empty file.
-    # See: https://github.com/google/clusterfuzz-tools/issues/326
-    args = (
-        '--no-verbose --waitretry=%s --retry-connrefused --content-disposition '
-        '--header="Authorization: %s" "%s"' %
-        (DOWNLOAD_TIMEOUT, auth_header, CLUSTERFUZZ_TESTCASE_URL % self.id))
-    common.execute('wget', args, self.testcase_dir_path)
     downloaded_filename = os.listdir(self.testcase_dir_path)[0]
-
     return self.get_true_testcase_path(downloaded_filename)

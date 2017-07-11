@@ -25,7 +25,7 @@ import shutil
 import tempfile
 
 import namedlist
-import requests
+import requests_cache
 from requests.packages.urllib3.util import retry
 from requests import adapters
 from backports.shutil_get_terminal_size import get_terminal_size
@@ -68,8 +68,13 @@ Options = namedlist.namedlist(
 
 # Configuring backoff retrying because sending a request to ClusterFuzz
 # might fail during a deployment.
-http = requests.Session()
-http.mount(
+HTTP_CACHE_TTL = 2 * 60
+os.makedirs(CLUSTERFUZZ_TESTCASES_DIR)  # Ensure the folder exists.
+HTTP = requests_cache.CachedSession(
+    cache_name=os.path.join(CLUSTERFUZZ_TESTCASES_DIR, 'http_cache'),
+    backend='sqlite', allowable_methods=('GET', 'POST'),
+    expire_after=HTTP_CACHE_TTL)
+HTTP.mount(
     'https://',
     adapters.HTTPAdapter(
         # backoff_factor is 0.5. Therefore, the max wait time is 16s.
@@ -80,7 +85,7 @@ http.mount(
 
 def post(*args, **kwargs):  # pragma: no cover
   """Make a post request. This method is needed for mocking."""
-  return http.post(*args, **kwargs)
+  return HTTP.post(*args, **kwargs)
 
 
 class CrashSignature(object):

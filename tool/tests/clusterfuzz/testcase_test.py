@@ -118,50 +118,71 @@ class TestcaseSetupTest(helpers.ExtendedTestCase):
     self.assertEqual(result.gestures, [])
 
 
-class GetTestcasePathTest(helpers.ExtendedTestCase):
-  """Tests the get_testcase_path method."""
+class DownloadTestcaseIfNeededTest(helpers.ExtendedTestCase):
+  """Test download_testcase_if_needed."""
 
   def setUp(self):
     self.setup_fake_filesystem()
     helpers.patch(self, [
-        'clusterfuzz.common.get_stored_auth_header',
         'clusterfuzz.common.execute',
-        'clusterfuzz.common.delete_if_exists',
-        'os.listdir',
-        'clusterfuzz.testcase.Testcase.get_true_testcase_path'])
+        'clusterfuzz.common.get_stored_auth_header',
+        'os.stat',
+        'time.time',
+    ])
     self.mock.get_stored_auth_header.return_value = 'Bearer 1a2s3d4f'
-    self.testcase_dir = os.path.join(
+    self.dir = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
-    self.test = build_base_testcase()
+    self.fake_dir = self.fs.CreateDirectory(self.dir)
+
+  def test_using_cache(self):
+    """Tests using cache."""
+    self.fake_dir.SetCTime(11)
+    self.mock.time.return_value = testcase.TESTCASE_CACHE_TTL + 10
+
+    testcase.download_testcase_if_needed('url', self.dir)
+
+    self.assertEqual(0, self.mock.execute.call_count)
 
   def test_downloading_testcase(self):
     """Tests the creation of folders & downloading of the testcase"""
+    self.fake_dir.SetCTime(9)
+    self.mock.time.return_value = testcase.TESTCASE_CACHE_TTL + 10
 
-    def do_wget(*unused_args):
-      path = os.path.join(
-          common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase/testcase.js')
-      with open(path, 'w') as f:
-        f.write('Fake testcase')
-    self.mock.execute.side_effect = do_wget
-    file_path = os.path.join(self.testcase_dir, 'testcase.js')
-    self.mock.get_true_testcase_path.return_value = file_path
-    self.assertFalse(os.path.exists(self.testcase_dir))
+    testcase.download_testcase_if_needed('url', self.dir)
 
-    result = self.test.get_testcase_path()
+    self.mock.get_stored_auth_header.assert_called_once_with()
+    self.mock.execute.assert_called_once_with(
+        'wget',
+        ('--no-verbose --waitretry=%s --retry-connrefused '
+         '--content-disposition --header="Authorization: %s" "url"' % (
+             testcase.DOWNLOAD_TIMEOUT,
+             self.mock.get_stored_auth_header.return_value)),
+        self.dir
+    )
+    self.assertTrue(os.path.exists(self.dir))
 
-    self.assertEqual(result, file_path)
-    self.assert_exact_calls(self.mock.get_stored_auth_header, [mock.call()])
-    self.assert_exact_calls(self.mock.execute, [
-        mock.call(
-            'wget',
-            ('--no-verbose --waitretry=%s --retry-connrefused '
-             '--content-disposition --header="Authorization: %s" "%s"' % (
-                 testcase.DOWNLOAD_TIMEOUT,
-                 self.mock.get_stored_auth_header.return_value,
-                 testcase.CLUSTERFUZZ_TESTCASE_URL % str(12345))),
-            self.testcase_dir)
+
+class GetTestcasePathTest(helpers.ExtendedTestCase):
+  """Tests the get_testcase_path method."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'os.listdir',
+        'clusterfuzz.testcase.Testcase.get_true_testcase_path',
+        'clusterfuzz.testcase.download_testcase_if_needed'
     ])
-    self.assertTrue(os.path.exists(self.testcase_dir))
+    self.test = build_base_testcase()
+    self.testcase_dir = os.path.join(
+        common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
+
+  def test_downloading_testcase(self):
+    """Tests the creation of folders & downloading of the testcase"""
+    self.mock.listdir.return_value = ['test.js']
+    self.mock.get_true_testcase_path.return_value = 'true_path'
+    self.assertEqual('true_path', self.test.get_testcase_path())
+
+    self.mock.download_testcase_if_needed.assert_called_once_with(
+        testcase.CLUSTERFUZZ_TESTCASE_URL % str(12345), self.testcase_dir)
 
 
 class GetTrueTestcasePathTest(helpers.ExtendedTestCase):

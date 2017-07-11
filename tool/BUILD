@@ -28,6 +28,7 @@ python_library(
         '//3rdparty/python:pyOpenSSL',
         '//3rdparty/python:pyyaml',
         '//3rdparty/python:requests',
+        '//3rdparty/python:requests-cache',
         '//3rdparty/python:urlfetch',
         '//3rdparty/python:xvfbwrapper',
         '//cmd-editor:src',
