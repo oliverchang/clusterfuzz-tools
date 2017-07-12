@@ -132,6 +132,23 @@ def create(testcase_json):
       raw_gn_args=testcase_json['metadata'].get('gn_args', '').strip())
 
 
+def get_true_testcase_path(
+    testcase_dir_path, expected_absolute_path, expected_extension, filename):
+  """Return actual testcase path, unzips testcase if required."""
+  if filename.endswith('.zip'):
+    zipped_file = zipfile.ZipFile(os.path.join(
+        testcase_dir_path, filename), 'r')
+    zipped_file.extractall(testcase_dir_path)
+    zipped_file.close()
+    return os.path.join(testcase_dir_path, expected_absolute_path)
+  else:
+    true_testcase_path = os.path.join(
+        testcase_dir_path, 'testcase%s' % expected_extension)
+    current_testcase_path = os.path.join(testcase_dir_path, filename)
+    os.rename(current_testcase_path, true_testcase_path)
+    return true_testcase_path
+
+
 class Testcase(object):
   """The Testase module, to abstract away logic using the testcase JSON."""
 
@@ -158,26 +175,12 @@ class Testcase(object):
         common.CLUSTERFUZZ_TESTCASES_DIR, str(self.id) + '_testcase')
 
   @common.memoize
-  def get_true_testcase_path(self, filename):
-    """Return actual testcase path, unzips testcase if required."""
-    if filename.endswith('.zip'):
-      zipped_file = zipfile.ZipFile(os.path.join(
-          self.testcase_dir_path, filename), 'r')
-      zipped_file.extractall(self.testcase_dir_path)
-      zipped_file.close()
-      return os.path.join(self.testcase_dir_path, self.absolute_path)
-    else:
-      true_testcase_path = os.path.join(
-          self.testcase_dir_path, 'testcase%s' % self.file_extension)
-      current_testcase_path = os.path.join(self.testcase_dir_path, filename)
-      os.rename(current_testcase_path, true_testcase_path)
-      return true_testcase_path
-
-  @common.memoize
   def get_testcase_path(self):
     """Downloads & returns the location of the testcase file."""
     download_testcase_if_needed(
         CLUSTERFUZZ_TESTCASE_URL % self.id, self.testcase_dir_path)
 
     downloaded_filename = os.listdir(self.testcase_dir_path)[0]
-    return self.get_true_testcase_path(downloaded_filename)
+    return get_true_testcase_path(
+        self.testcase_dir_path, self.absolute_path, self.file_extension,
+        downloaded_filename)

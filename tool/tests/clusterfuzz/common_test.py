@@ -16,6 +16,7 @@
 import cStringIO
 import subprocess
 import os
+import random
 import signal
 import stat
 
@@ -663,26 +664,70 @@ class DummyMemoize(object):
     return self.a_value
 
   @common.memoize
-  def b(self):
+  def b(self, arg):
     self.b_execution_count += 1
-    return self.b_value
+    return self.b_value + arg
+
+
+@common.memoize
+def dummy_memoize():
+  return random.randint(1, 1000000)
 
 
 class MemoizeTest(helpers.ExtendedTestCase):
   """Test memoize."""
 
-  def test_memoize(self):
-    """Test memoize."""
+  def test_memoize_module(self):
+    """Test memoizing a module function."""
+    result = dummy_memoize()
+    for _ in xrange(10):
+      self.assertEqual(result, dummy_memoize())
+
+  def test_different_args(self):
+    """Test memoizing different arguments."""
+    dummy = DummyMemoize('a', 'b')
+
+    for _ in xrange(10):
+      self.assertEqual('ba', dummy.b('a'))
+    self.assertEqual(1, dummy.b_execution_count)
+
+    for _ in xrange(10):
+      self.assertEqual('baaa', dummy.b('aaa'))
+    self.assertEqual(2, dummy.b_execution_count)
+
+  def test_different_instances(self):
+    """Test memoizing different instances."""
     dummy_0 = DummyMemoize('a', 'b')
     dummy_1 = DummyMemoize('c', 'd')
 
     for _ in xrange(0, 5):
       self.assertEqual('a', dummy_0.a())
-      self.assertEqual('b', dummy_0.b())
+      self.assertEqual('bx', dummy_0.b('x'))
       self.assertEqual('c', dummy_1.a())
-      self.assertEqual('d', dummy_1.b())
+      self.assertEqual('dx', dummy_1.b('x'))
 
     self.assertEqual(1, dummy_0.a_execution_count)
     self.assertEqual(1, dummy_0.b_execution_count)
     self.assertEqual(1, dummy_1.a_execution_count)
     self.assertEqual(1, dummy_1.b_execution_count)
+
+
+class PostTest(helpers.ExtendedTestCase):
+  """Test post."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+    helpers.patch(self, [
+        'requests_cache.CachedSession',
+    ])
+    self.http = mock.Mock()
+    self.mock.CachedSession.return_value = self.http
+
+  def test_post(self):
+    """Test post."""
+    common.post('a', b='c')
+
+    self.assertTrue(os.path.exists(common.CLUSTERFUZZ_TESTCASES_DIR))
+    self.assertEqual(1, self.mock.CachedSession.call_count)
+    self.assertEqual(1, self.http.mount.call_count)
+    self.http.post.assert_called_once_with('a', b='c')

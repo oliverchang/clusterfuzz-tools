@@ -55,6 +55,7 @@ CLUSTERFUZZ_BUILDS_DIR = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'builds')
 AUTH_HEADER_FILE = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'auth_header')
 DOMAIN_NAME = 'clusterfuzz.com'
 TERMINAL_WIDTH = get_terminal_size().columns
+HTTP_CACHE_TTL = 2 * 60
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -66,26 +67,52 @@ Options = namedlist.namedlist(
 )
 
 
-# Configuring backoff retrying because sending a request to ClusterFuzz
-# might fail during a deployment.
-HTTP_CACHE_TTL = 2 * 60
-os.makedirs(CLUSTERFUZZ_TESTCASES_DIR)  # Ensure the folder exists.
-HTTP = requests_cache.CachedSession(
-    cache_name=os.path.join(CLUSTERFUZZ_TESTCASES_DIR, 'http_cache'),
-    backend='sqlite', allowable_methods=('GET', 'POST'),
-    expire_after=HTTP_CACHE_TTL)
-HTTP.mount(
-    'https://',
-    adapters.HTTPAdapter(
-        # backoff_factor is 0.5. Therefore, the max wait time is 16s.
-        retry.Retry(
-            total=5, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]))
-)
+MEMOIZED_CACHE = {}
 
 
-def post(*args, **kwargs):  # pragma: no cover
-  """Make a post request. This method is needed for mocking."""
-  return HTTP.post(*args, **kwargs)
+def memoize(func):
+  """A decorator for caching the method's result using args. There
+    are several properties that needs certain actions (e.g. asking for input,
+    downloading file). Without memoize, we would need to maintain an explicit
+    variable to achieve it.
+
+    This works with both instance methods and module methods."""
+
+  @functools.wraps(func)
+  def wrapper(*args, **kwargs):
+    """Wrapper function."""
+    key = (func, args, tuple(sorted(kwargs.items())))
+    if key in MEMOIZED_CACHE:
+      return MEMOIZED_CACHE[key]
+
+    result = func(*args, **kwargs)
+    MEMOIZED_CACHE[key] = result
+    return result
+  return wrapper
+
+
+@memoize
+def get_http():
+  """Get the http object."""
+  ensure_dir(CLUSTERFUZZ_TESTCASES_DIR)
+  http = requests_cache.CachedSession(
+      cache_name=os.path.join(CLUSTERFUZZ_TESTCASES_DIR, 'http_cache'),
+      backend='sqlite', allowable_methods=('GET', 'POST'),
+      expire_after=HTTP_CACHE_TTL)
+  http.mount(
+      'https://',
+      adapters.HTTPAdapter(
+          # backoff_factor is 0.5. Therefore, the max wait time is 16s.
+          retry.Retry(
+              total=5, backoff_factor=0.5,
+              status_forcelist=[500, 502, 503, 504]))
+  )
+  return http
+
+
+def post(*args, **kwargs):
+  """Make a post request."""
+  return get_http().post(*args, **kwargs)
 
 
 class CrashSignature(object):
@@ -496,24 +523,3 @@ def gsutil(*args, **kwargs):
     return execute('gsutil', *args, **kwargs)
   except error.NotInstalledError:
     raise error.GsutilNotInstalledError()
-
-
-def memoize(func):
-  """A decorator for caching the result of an instance method. There are several
-    properties that needs certain actions (e.g. asking for input, downloading
-    file). Without memoize, we would need to maintain an explicit variable to
-    achieve it.
-
-    This only works with an instance method."""
-
-  @functools.wraps(func)
-  def wrapper(self, *args, **kwargs):
-    """Wrapper function."""
-    key = '__memoized_%s__' % func.__name__
-    if hasattr(self, key):
-      return getattr(self, key)
-
-    result = func(self, *args, **kwargs)
-    setattr(self, key, result)
-    return result
-  return wrapper

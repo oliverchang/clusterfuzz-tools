@@ -168,7 +168,7 @@ class GetTestcasePathTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'os.listdir',
-        'clusterfuzz.testcase.Testcase.get_true_testcase_path',
+        'clusterfuzz.testcase.get_true_testcase_path',
         'clusterfuzz.testcase.download_testcase_if_needed'
     ])
     self.test = build_base_testcase()
@@ -189,38 +189,34 @@ class GetTrueTestcasePathTest(helpers.ExtendedTestCase):
   """Tests the get_true_testcase_path method."""
 
   def setUp(self):
-    helpers.patch(self, ['zipfile.ZipFile',
-                         'os.rename'])
-    self.test = build_base_testcase()
+    helpers.patch(self, ['zipfile.ZipFile', 'os.rename'])
     self.mock.ZipFile.return_value = mock.Mock()
+    self.absolute_path = 'to/testcase.js'
+    self.testcase_dir_path = os.path.join(
+        common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
+    self.file_extension = '.js'
 
   def test_zipfile(self):
     """Tests when the file is a zipfile."""
-    self.test.absolute_path = 'to/testcase.js'
     self.assertEqual(
-        os.path.join(
-            common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase', 'to',
-            'testcase.js'),
-        self.test.get_true_testcase_path('abcd.zip'))
+        os.path.join(self.testcase_dir_path, 'to', 'testcase.js'),
+        testcase.get_true_testcase_path(
+            self.testcase_dir_path, self.absolute_path, self.file_extension,
+            'abcd.zip')
+    )
 
     self.mock.ZipFile.assert_has_calls([
-        mock.call(
-            os.path.join(
-                common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase', 'abcd.zip'),
-            'r'),
-        mock.call().extractall(os.path.join(
-            common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase'))
+        mock.call(os.path.join(self.testcase_dir_path, 'abcd.zip'), 'r'),
+        mock.call().extractall(self.testcase_dir_path)
     ])
 
   def test_no_zipfile(self):
     """Tests when the downloaded file is not zipped."""
-
-    self.test.absolute_path = '/absolute/path/to/wrong_testcase.js'
-    self.test.get_true_testcase_path('abcd.js')
+    testcase.get_true_testcase_path(
+        self.testcase_dir_path, self.absolute_path, self.file_extension,
+        'abcd.js')
 
     self.assert_n_calls(0, [self.mock.ZipFile])
-    testcase_dir = os.path.join(
-        common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
     self.assert_exact_calls(self.mock.rename, [
-        mock.call(os.path.join(testcase_dir, 'abcd.js'),
-                  os.path.join(testcase_dir, 'testcase.js'))])
+        mock.call(os.path.join(self.testcase_dir_path, 'abcd.js'),
+                  os.path.join(self.testcase_dir_path, 'testcase.js'))])

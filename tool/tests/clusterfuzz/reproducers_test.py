@@ -25,17 +25,6 @@ from tests import libs
 from test_libs import helpers
 
 
-def patch_stacktrace_info(obj):
-  """Patches get_stacktrace_info for initializing a Reproducer."""
-
-  patcher = mock.patch('clusterfuzz.common.post',
-                       return_value=mock.Mock(text=json.dumps({
-                           'crash_state': 'original\nstate',
-                           'crash_type': 'original_type'})))
-  patcher.start()
-  obj.addCleanup(patcher.stop)
-
-
 def create_reproducer(klass):
   """Creates a LinuxChromeJobReproducer for use in testing."""
 
@@ -350,7 +339,6 @@ class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
     self.mock.ensure_user_data_dir_if_needed.side_effect = (
         lambda args, require_user_data_dir: args + ' --test-user-data-dir')
     self.mock.update_testcase_path_in_layout_test.return_value = '/new-path'
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.reproducer.definition.require_user_data_dir = False
     self.reproducer.original_testcase_path = '/fake/LayoutTests/testcase'
@@ -379,7 +367,6 @@ class XdotoolCommandTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
         'clusterfuzz.common.BlockStdin'
     ])
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_call(self):
@@ -401,7 +388,6 @@ class FindWindowsForProcessTest(helpers.ExtendedTestCase):
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_process_ids',
         'clusterfuzz.common.execute',
         'time.sleep'])
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_no_pids(self):
@@ -430,7 +416,6 @@ class GetProcessIdsTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, ['psutil.Process',
                          'psutil.pid_exists'])
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_process_not_running(self):
@@ -477,7 +462,6 @@ class RunGesturesTest(helpers.ExtendedTestCase):
          '_process'),
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.xdotool_command',
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.execute_gesture'])
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.mock.get_gesture_start_time.return_value = 5
     self.mock.find_windows_for_process.return_value = ['123']
@@ -499,7 +483,6 @@ class GetGestureStartTimeTest(helpers.ExtendedTestCase):
   """Test the get_gesture_start_time method."""
 
   def setUp(self):
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_with_trigger(self):
@@ -520,7 +503,6 @@ class ExecuteGestureTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.xdotool_command'])
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.reproducer.gestures = ['windowsize,2', 'type,\'ValeM1khbW4Gt!\'']
 
@@ -649,58 +631,46 @@ class ReproduceNormalTest(helpers.ExtendedTestCase):
   """Tests the reproduce_normal method within reproducers."""
 
   def setUp(self):
-    patch_stacktrace_info(self)
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     helpers.patch(self, [
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.reproduce_crash',
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.post_run_symbolize',
-        'clusterfuzz.common.post',
+        'clusterfuzz.reproducers.get_crash_signature',
         'time.sleep'])
     self.mock.reproduce_crash.return_value = (0, 'stuff')
     self.mock.post_run_symbolize.return_value = 'stuff'
-    self.reproducer.crash_type = 'original_type'
-    self.reproducer.crash_state = ['original', 'state']
+    self.reproducer.get_crash_signature = lambda: common.CrashSignature(
+        'original', ['state'])
     self.reproducer.job_type = 'linux_ubsan_chrome'
 
   def test_different_stacktrace(self):
     """Tests system exit when the stacktrace doesn't match."""
-
-    wrong_response = {
-        'crash_type': 'wrong type',
-        'crash_state': 'incorrect\nstate2'}
-    self.mock.post.side_effect = [
-        mock.Mock(text=json.dumps(wrong_response)),
-        mock.Mock(text=json.dumps(wrong_response))]
+    self.mock.get_crash_signature.return_value = common.CrashSignature(
+        'wrong type', ['incorrect', 'state2'])
 
     with self.assertRaises(error.DifferentStacktraceError):
       self.reproducer.reproduce_normal(2)
 
   def test_no_stacktrace(self):
     """Tests system exit when the stacktrace doesn't match."""
-
-    wrong_response = {'crash_type': '', 'crash_state': ''}
-    self.mock.post.side_effect = [
-        mock.Mock(text=json.dumps(wrong_response)),
-        mock.Mock(text=json.dumps(wrong_response))]
+    self.mock.get_crash_signature.return_value = common.CrashSignature('', [])
 
     with self.assertRaises(error.UnreproducibleError):
       self.reproducer.reproduce_normal(2)
 
   def test_good_stacktrace(self):
     """Tests functionality when the stacktrace matches"""
-    correct_response = {
-        'crash_type': 'original_type',
-        'crash_state': 'original\nstate'}
-    wrong_response = {
-        'crash_type': 'wrong type',
-        'crash_state': 'incorrect\nstate2'}
-    self.mock.post.side_effect = [
-        mock.Mock(text=json.dumps(wrong_response)),
-        mock.Mock(text=json.dumps(correct_response))]
+    self.mock.get_crash_signature.side_effect = [
+        common.CrashSignature('wrong type', ['incorrect', 'state2']),
+        common.CrashSignature('wrong type', ['incorrect', 'state2']),
+        common.CrashSignature('original_type', ['original', 'state'])
+    ]
 
     self.assertTrue(self.reproducer.reproduce_normal(10))
     self.assert_exact_calls(self.mock.reproduce_crash, [
-        mock.call(self.reproducer), mock.call(self.reproducer)])
+        mock.call(self.reproducer), mock.call(self.reproducer),
+        mock.call(self.reproducer)
+    ])
 
 
 class ReproduceDebugTest(helpers.ExtendedTestCase):
@@ -727,7 +697,7 @@ class PostRunSymbolizeTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
         'clusterfuzz.common.get_resource',
         'clusterfuzz.common.StringStdin',
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_stacktrace_info'
+        'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_crash_signature'
     ])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.reproducer.source_directory = '/path/to/chromium'
@@ -967,3 +937,45 @@ class UpdateForGdbIfNeededTest(helpers.ExtendedTestCase):
     self.assertEqual(
         ('gdb', "-ex 'b __sanitizer::Die' -ex run --args b a", None),
         reproducers.update_for_gdb_if_needed('b', 'a', 30, True))
+
+
+class BaseReproducerGetCrashSignatureTest(helpers.ExtendedTestCase):
+  """Test BaseReproducer.get_crash_signature."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.reproducers.get_crash_signature',
+    ])
+
+  def test_get(self):
+    """Test getting crash signature."""
+    self.mock.get_crash_signature.return_value = common.CrashSignature('t', [])
+    self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
+    self.assertEqual(
+        self.mock.get_crash_signature.return_value,
+        self.reproducer.get_crash_signature())
+
+    self.mock.get_crash_signature.assert_called_once_with(
+        self.reproducer.testcase.job_type, 'line')
+
+
+class GetCrashSignatureTest(helpers.ExtendedTestCase):
+  """Test get_crash_signature."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.common.post'])
+
+  def test_get(self):
+    """Test get."""
+    self.mock.post.return_value = mock.Mock(
+        text=json.dumps({
+            'crash_state': 'original\nstate',
+            'crash_type': 'original_type'})
+    )
+    self.assertEqual(
+        common.CrashSignature('original_type', ['original', 'state']),
+        reproducers.get_crash_signature('job', 'raw_stacktrace'))
+    self.mock.post.assert_called_once_with(
+        url='https://clusterfuzz.com/v2/parse_stacktrace',
+        data=json.dumps({'job': 'job', 'stacktrace': 'raw_stacktrace'})
+    )

@@ -162,6 +162,18 @@ def update_for_gdb_if_needed(binary_path, args, timeout, should_enable_gdb):
   return 'gdb', args, None
 
 
+def get_crash_signature(job_type, raw_stacktrace):
+  """Get crash signature from raw_stacktrace by asking ClusterFuzz."""
+  response = common.post(
+      url='https://clusterfuzz.com/v2/parse_stacktrace',
+      data=json.dumps({'job': job_type, 'stacktrace': raw_stacktrace}))
+  response = json.loads(response.text)
+  crash_state_lines = tuple(
+      [x for x in response['crash_state'].split('\n') if x])
+  crash_type = response['crash_type'].replace('\n', ' ')
+  return common.CrashSignature(crash_type, crash_state_lines)
+
+
 class BaseReproducer(object):
   """The basic reproducer class that all other ones are built on."""
 
@@ -177,6 +189,7 @@ class BaseReproducer(object):
 
   def __init__(self, definition, binary_provider, testcase, sanitizer, options):
     self.definition = definition
+    self.testcase = testcase
     self.original_testcase_path = testcase.absolute_path
     self.testcase_path = testcase.get_testcase_path()
     self.job_type = testcase.job_type
@@ -192,14 +205,8 @@ class BaseReproducer(object):
     self.options = options
     self.timeout = TEST_TIMEOUT
 
-    stacktrace_lines = strip_html(
-        [l['content'] for l in testcase.stacktrace_lines])
-    stacktrace_lines = get_only_first_stacktrace(stacktrace_lines)
-    self.crash_signature = self.get_stacktrace_info('\n'.join(stacktrace_lines))
-
     self.gesture_start_time = (self.get_gesture_start_time() if self.gestures
                                else None)
-
 
   def set_up_symbolizers_suppressions(self):
     """Sets up the symbolizer variables for an environment."""
@@ -246,17 +253,13 @@ class BaseReproducer(object):
         stdin=common.UserStdin(),
         read_buffer_length=1)
 
-  def get_stacktrace_info(self, trace):
+  @common.memoize
+  def get_crash_signature(self):
     """Post a stacktrace, return (crash_state, crash_type)."""
-
-    response = common.post(
-        url=('https://clusterfuzz.com/v2/parse_stacktrace'),
-        data=json.dumps({'job': self.job_type, 'stacktrace': trace}))
-    response = json.loads(response.text)
-    crash_state_lines = tuple(
-        [x for x in response['crash_state'].split('\n') if x])
-    crash_type = response['crash_type'].replace('\n', ' ')
-    return common.CrashSignature(crash_type, crash_state_lines)
+    stacktrace_lines = strip_html(
+        [l['content'] for l in self.testcase.stacktrace_lines])
+    stacktrace_lines = get_only_first_stacktrace(stacktrace_lines)
+    return get_crash_signature(self.job_type, '\n'.join(stacktrace_lines))
 
   def setup_args(self):
     """Setup args."""
@@ -304,7 +307,7 @@ class BaseReproducer(object):
     while iterations <= iteration_max:
       _, output = self.reproduce_crash()
 
-      new_signature = self.get_stacktrace_info(output)
+      new_signature = get_crash_signature(self.job_type, output)
       new_signature.output = output
       signatures.add(new_signature)
 
@@ -317,11 +320,11 @@ class BaseReproducer(object):
           'Original crash state:\n  %s\n',
           new_signature.crash_type,
           '\n  '.join(new_signature.crash_state_lines),
-          self.crash_signature.crash_type,
-          '\n  '.join(self.crash_signature.crash_state_lines))
+          self.get_crash_signature().crash_type,
+          '\n  '.join(self.get_crash_signature().crash_state_lines))
 
       # The crash signature validation is intentionally forgiving.
-      if is_similar(new_signature, self.crash_signature):
+      if is_similar(new_signature, self.get_crash_signature()):
         logger.info(common.colorize(
             'The stacktrace seems similar to the original stacktrace.\n'
             "Since you've reproduced the crash correctly, there are some "
