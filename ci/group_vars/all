@@ -7,6 +7,10 @@ project_id: clusterfuzz-tools
 zone: us-central1-a
 size_gb: 100
 
+# The compute engine default service account shown in the IAM page.
+default_gce_service_account_email: 981641712411-compute@developer.gserviceaccount.com
+
+# Ansible GCE requires a service account email with JSON credentials. So, we make one.
 service_account_email: ci-round-2@clusterfuzz-tools.iam.gserviceaccount.com
 credentials_file: /google/data/ro/teams/clusterfuzz-tools/credentials/clusterfuzz-tools-ci-credentials-2.json
 
