@@ -67,7 +67,6 @@
       args:
         chdir: ../
         executable: /bin/bash
-    # We expect GOMA_DIR or goma to be at the default location, ~/goma.
     - name: Update the local goma
       shell: python goma_ctl.py update
       args:
@@ -141,6 +140,10 @@
         # Disable Python optimization because speed is not important
         - {'key': 'PYTHONUNBUFFERED', 'value': '1'}
         - {'key': 'PYTHONDONTWRITEBYTECODE', 'value': '1'}
+        # Runit and chpst doesn't inject the below variables. Some commands
+        # (e.g. gitconfig) depend on them.
+        - {'key': 'HOME', 'value': '/home/clusterfuzz'}
+        - {'key': 'USER', 'value': 'clusterfuzz'}
     - name: Sync important files
       synchronize: src={{item.src}}
                    dest={{item.dest}}

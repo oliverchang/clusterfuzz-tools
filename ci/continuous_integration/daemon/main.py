@@ -76,7 +76,6 @@ def run_testcase(testcase_id, opts):
       cwd=HOME,
       env={
           'CF_QUIET': '1',
-          'USER': 'clusterfuzz',
           'CHROMIUM_SRC': CHROMIUM_SRC,
           'GOMA_GCE_SERVICE_ACCOUNT': 'default',
           'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)

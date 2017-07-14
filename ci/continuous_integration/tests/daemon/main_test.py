@@ -85,7 +85,6 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
             cwd=main.HOME,
             env={
                 'CF_QUIET': '1',
-                'USER': 'clusterfuzz',
                 'CHROMIUM_SRC': main.CHROMIUM_SRC,
                 'PATH': 'test:%s' % main.DEPOT_TOOLS,
                 'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
