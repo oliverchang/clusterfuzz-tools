@@ -48,9 +48,9 @@ class TestSendLog(helpers.ExtendedTestCase):
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
-    params['message'] = ('name successfully finished running reproduce with '
-                         'testcase=123456, build_type=chromium, current=True, '
-                         'and goma=disabled\nStacktrace')
+    params['message'] = (
+        'name successfully finished (reproduce, 123456, True).\n'
+        'Stacktrace')
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
         'resource': {
@@ -80,9 +80,7 @@ class TestSendLog(helpers.ExtendedTestCase):
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
-    params['message'] = ('name successfully finished running reproduce with '
-                         'testcase=123456, build_type=chromium, current=True, '
-                         'and goma=disabled')
+    params['message'] = 'name successfully finished (reproduce, 123456, True).'
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
         'resource': {
@@ -112,9 +110,7 @@ class TestSendLog(helpers.ExtendedTestCase):
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
-    params['message'] = ('name started running reproduce with '
-                         'testcase=123456, build_type=chromium, current=True, '
-                         'and goma=disabled')
+    params['message'] = 'name started (reproduce, 123456, True).'
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
         'resource': {

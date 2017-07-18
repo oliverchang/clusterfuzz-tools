@@ -61,12 +61,10 @@ def send_log(params, stacktrace=None):
               'unsuccessfully finished')
   else:
     prefix = 'started'
-  params['message'] = ('%s %s running %s with testcase=%s, build_type=%s, '
-                       'current=%s, and goma=%s' % (
-                           params['user'], prefix, params['command'],
-                           params['testcase_id'], params['build'],
-                           params['current'],
-                           'disabled' if params['disable_goma'] else 'enabled'))
+  params['message'] = (
+      '%s %s (%s, %s, %s).' % (
+          params['user'], prefix, params['command'],
+          params['testcase_id'], params['current']))
   if stacktrace:
     params['message'] += '\n%s' % stacktrace
 

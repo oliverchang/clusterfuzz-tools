@@ -17,9 +17,6 @@ import json
 import os
 import mock
 
-from clusterfuzz import common
-from clusterfuzz import binary_providers
-from clusterfuzz import reproducers
 from clusterfuzz.commands import reproduce
 from error import error
 from tests import libs
@@ -403,32 +400,44 @@ class GetDefinitionTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, ['clusterfuzz.commands.reproduce.get_supported_jobs'])
+    self.v8_definition = mock.Mock()
+    self.chromium_definition = mock.Mock()
     self.mock.get_supported_jobs.return_value = {
-        'chromium': {
-            'libfuzzer_chrome_msan': common.Definition(
-                builder=binary_providers.ChromiumBuilder,
-                source_name='chromium',
-                reproducer=reproducers.BaseReproducer,
-                binary_name=None,
-                sanitizer='MSAN',
-                target=None,
-                require_user_data_dir=False)},
-        'standalone': {}}
+        'chromium': {'libfuzzer_chrome_msan': self.chromium_definition},
+        'standalone': {'linux_asan_d8': self.v8_definition}
+    }
 
   def test_download_param(self):
     """Tests when the build_param is download"""
-
     result = reproduce.get_definition('libfuzzer_chrome_msan', 'download')
-    self.assertEqual(result.builder, binary_providers.ChromiumBuilder)
+    self.assertEqual(result, self.chromium_definition)
+
+    result = reproduce.get_definition('linux_asan_d8', 'download')
+    self.assertEqual(result, self.v8_definition)
 
     with self.assertRaises(error.JobTypeNotSupportedError):
       result = reproduce.get_definition('fuzzlibber_nasm', 'download')
 
-  def test_build_param(self):
-    """Tests when build_param is an option that requires building."""
+  def test_default(self):
+    """Tests when the build is not specified."""
+    result = reproduce.get_definition('linux_asan_d8', '')
+    self.assertEqual(result, self.v8_definition)
 
+    result = reproduce.get_definition('libfuzzer_chrome_msan', '')
+    self.assertEqual(result, self.chromium_definition)
+
+  def test_standalone(self):
+    """Tests when the build is standalone."""
+    result = reproduce.get_definition('linux_asan_d8', 'standalone')
+    self.assertEqual(result, self.v8_definition)
+
+    with self.assertRaises(error.JobTypeNotSupportedError):
+      result = reproduce.get_definition('fuzzlibber_nasm', 'standalone')
+
+  def test_chromium(self):
+    """Tests when the build is chromium."""
     result = reproduce.get_definition('libfuzzer_chrome_msan', 'chromium')
-    self.assertEqual(result.builder, binary_providers.ChromiumBuilder)
+    self.assertEqual(result, self.chromium_definition)
 
     with self.assertRaises(error.JobTypeNotSupportedError):
       result = reproduce.get_definition('fuzzlibber_nasm', 'chromium')

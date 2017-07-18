@@ -194,13 +194,17 @@ def get_supported_jobs():
 
 
 def get_definition(job_type, build_param):
+  """Get definition."""
   supported_jobs = get_supported_jobs()
-  if build_param != 'download' and job_type in supported_jobs[build_param]:
-    return supported_jobs[build_param][job_type]
+  if build_param == 'download' or build_param == '':
+    builds = ['chromium', 'standalone']
   else:
-    for i in ['chromium', 'standalone']:
-      if job_type in supported_jobs[i]:
-        return supported_jobs[i][job_type]
+    builds = [build_param]
+
+  for build in builds:
+    if job_type in supported_jobs[build]:
+      return supported_jobs[build][job_type]
+
   raise error.JobTypeNotSupportedError(job_type)
 
 
