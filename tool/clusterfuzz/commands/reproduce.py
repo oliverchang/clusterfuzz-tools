@@ -196,7 +196,7 @@ def get_supported_jobs():
 def get_definition(job_type, build_param):
   """Get definition."""
   supported_jobs = get_supported_jobs()
-  if build_param == 'download' or build_param == '':
+  if build_param == 'download' or not build_param:
     builds = ['chromium', 'standalone']
   else:
     builds = [build_param]
