@@ -214,6 +214,10 @@ def clean():
   process.call('git add --all', cwd=CHROMIUM_SRC)
   process.call('git reset --hard', cwd=CHROMIUM_SRC)
 
+  # This fixes the problem in:
+  # https://github.com/google/clusterfuzz-tools/issues/426
+  process.call('git checkout origin/master -f', cwd=CHROMIUM_SRC)
+
   # --reset resets all uncommitted changes in the sub repo.
   process.call(
       'gclient sync --reset',

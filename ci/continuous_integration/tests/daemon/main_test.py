@@ -399,6 +399,7 @@ class CleanTest(helpers.ExtendedTestCase):
         mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
         mock.call('git add --all', cwd=main.CHROMIUM_SRC),
         mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
+        mock.call('git checkout origin/master -f', cwd=main.CHROMIUM_SRC),
         mock.call(
             'gclient sync --reset', cwd=main.CHROMIUM_SRC,
             env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),
