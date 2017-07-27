@@ -77,3 +77,6 @@ class InitTest(helpers.ExtendedTestCase):
     error.UnauthorizedError('123456')
     error.DifferentStacktraceError(
         10, [Signature('type', ['a', 'b'], 'output')])
+    error.GdbNotSupportedOnAndroidError()
+    error.WaitForAndroidAfterInstallingAsanError()
+    error.NoAndroidDeviceIdError('ANDROID_SERIAL')

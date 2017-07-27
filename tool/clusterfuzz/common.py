@@ -252,7 +252,7 @@ def edit_if_needed(content, prefix, comment, should_edit):
 def check_binary(binary, cwd):
   """Check if the binary exists."""
   try:
-    subprocess.check_output(['which', binary], cwd=cwd)
+    return subprocess.check_output(['which', binary], cwd=cwd).strip()
   except subprocess.CalledProcessError:
     raise error.NotInstalledError(binary)
 
@@ -327,8 +327,7 @@ def start_execute(
   # See https://github.com/google/clusterfuzz-tools/issues/199 why we need this.
   sanitized_env = {}
   for k, v in env.iteritems():
-    if v is not None:
-      sanitized_env[str(k)] = str(v)
+    sanitized_env[str(k)] = str(v) if v is not None else ''
 
   env_str = ' '.join(
       ['%s="%s"' % (k, v) for k, v in sanitized_env.iteritems()])

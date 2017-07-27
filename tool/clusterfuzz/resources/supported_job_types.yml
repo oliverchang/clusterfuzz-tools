@@ -58,8 +58,9 @@ presets: #Any parameters in a preset can be overridden in the actual definition
             sanitizer: ASAN
         android:
             preset: linux_chromium
-            binary: chrome
+            binary: apks/ChromePublic.apk
             target: chrome_public_apk
+            reproducer: Android
 standalone:
         linux_asan_d8: { preset: linux_asan_d8_standalone }
         linux_asan_d8_dbg: { preset: linux_asan_d8_standalone }

@@ -299,9 +299,10 @@ class SetupArgsTest(helpers.ExtendedTestCase):
         libs.make_options(
             disable_xvfb=True,
             target_args='--test --disable-gl-drawing-for-tests'))
+    reproducer.args = '--repro %TESTCASE_FILE_URL%'
 
     reproducer.setup_args()
-    self.assertEqual('--repro --test %s' % self.testcase_path, reproducer.args)
+    self.assertEqual('--repro %s --test' % self.testcase_path, reproducer.args)
     self.mock.update_for_gdb_if_needed.assert_called_once_with(
         reproducer.binary_path, reproducer.args,
         reproducer.timeout, reproducer.options.enable_debug)
@@ -323,6 +324,7 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     self.mock.edit_if_needed.assert_called_once_with(
         reproducer.args, prefix=mock.ANY, comment=mock.ANY,
         should_edit=reproducer.options.edit_mode)
+
 
 class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
   """Tests the extra functions of LinuxUbsanChromeReproducer."""
@@ -979,3 +981,118 @@ class GetCrashSignatureTest(helpers.ExtendedTestCase):
         url='https://clusterfuzz.com/v2/parse_stacktrace',
         data=json.dumps({'job': 'job', 'stacktrace': 'raw_stacktrace'})
     )
+
+class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
+  """Tests methods in AndroidChromeReproducer."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.adb'])
+    self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
+    self.mock_os_environment({})
+
+  def test_reproduce_debug(self):
+    """Tests AndroidChromeReproducer.reproduce_debug."""
+    with self.assertRaises(error.GdbNotSupportedOnAndroidError):
+      self.reproducer.reproduce_debug()
+
+  def test_get_device_id(self):
+    """Tests AndroidChromeReproducer.get_device_id."""
+    os.environ['ANDROID_SERIAL'] = 'test'
+    self.assertEqual('test', self.reproducer.get_device_id())
+
+  def test_get_device_id_error(self):
+    """Tests AndroidChromeReproducer.get_device_id when erroring."""
+    os.environ['ANDROID_SERIAL'] = ''
+    with self.assertRaises(error.NoAndroidDeviceIdError):
+      self.reproducer.get_device_id()
+
+  def test_get_package_name(self):
+    """Tests AndroidChromeReproducer.get_package_name."""
+    self.assertEqual('org.chromium.chrome', self.reproducer.get_package_name())
+
+  def test_get_testcase_path(self):
+    """Tests AndroidChromeReproducer.get_testcase_path."""
+    self.reproducer.testcase_path = '/mnt/test.html'
+    self.assertEqual(
+        'file:///sdcard/test.html', self.reproducer.get_testcase_path())
+    self.mock.adb.assert_called_once_with(
+        'push /mnt/test.html /sdcard/')
+
+
+class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
+  """Tests AndroidChromeReproducer.pre_build_steps."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb',
+        'clusterfuzz.android.ensure_active',
+        'clusterfuzz.android.ensure_asan',
+        'clusterfuzz.android.ensure_root',
+        'clusterfuzz.android.write_content',
+        'clusterfuzz.reproducers.AndroidChromeReproducer.get_device_id',
+        'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
+        'clusterfuzz.reproducers.BaseReproducer.pre_build_steps',
+    ])
+    self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
+    self.reproducer.testcase.files = {'test-file': 'content'}
+    self.reproducer.testcase.command_line_file_path = (
+        '/data/local/chrome-command-line')
+    self.mock.get_device_id.return_value = 'device'
+
+  def test_pre_build_steps(self):
+    """Tests AndroidChromeReproducer.pre_build_steps."""
+    self.reproducer.pre_build_steps()
+
+    self.mock.ensure_root.assert_called_once_with()
+    self.mock.ensure_active.assert_called_once_with()
+    self.mock.ensure_asan(
+        source_dir_path=self.reproducer.binary_provider.get_source_dir_path(),
+        device_id='device')
+    self.mock.adb.assert_called_once_with(
+        'install -r %s' % self.reproducer.binary_path)
+    self.assert_exact_calls(self.mock.write_content, [
+        mock.call('test-file', 'content'),
+        mock.call(
+            '/data/local/chrome-command-line',
+            'chrome %s' % self.reproducer.args)
+    ])
+
+
+class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
+  """Tests AndroidChromeReproducer.reproduce_crash."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb_shell',
+        'clusterfuzz.android.clear_log',
+        'clusterfuzz.android.ensure_active',
+        'clusterfuzz.android.filter_log',
+        'clusterfuzz.android.get_log',
+        'clusterfuzz.android.kill',
+        'clusterfuzz.android.reset',
+        'clusterfuzz.reproducers.AndroidChromeReproducer.get_package_name',
+        'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
+        'time.sleep',
+    ])
+    self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
+    self.mock.get_package_name.return_value = 'package'
+    self.mock.get_testcase_path.return_value = 'testcase-path'
+
+  def test_reproduce_crash(self):
+    """Tests AndroidChromeReproducer.reproduce_crash."""
+    self.mock.adb_shell.return_value = (0, 'dontcare')
+    self.mock.get_log.return_value = 'raw log'
+    self.mock.filter_log.return_value = 'filtered log'
+
+    self.assertEqual((0, 'filtered log'), self.reproducer.reproduce_crash())
+
+    self.mock.reset.assert_called_once_with('package')
+    self.mock.ensure_active.assert_called_once_with()
+    self.mock.clear_log.assert_called_once_with()
+    self.mock.adb_shell.assert_called_once_with(
+        'am start -a android.intent.action.MAIN -n '
+        "package/com.google.android.apps.chrome.Main 'testcase-path'")
+    self.mock.sleep.assert_called_once_with(30)
+    self.mock.get_log.assert_called_once_with()
+    self.mock.kill.assert_called_once_with('package')
+    self.mock.filter_log.assert_called_once_with('raw log')

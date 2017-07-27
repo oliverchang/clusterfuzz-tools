@@ -23,7 +23,7 @@ from test_libs import helpers
 
 def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
                         window_arg='', minimized_args='', extension='.js',
-                        gestures=None):
+                        gestures=None, job_type='linux_asan_d8_dbg'):
   """Builds a testcase instance that can be used for testing."""
   if extension is not None:
     extension = '.%s' % extension
@@ -33,13 +33,13 @@ def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
     stacktrace_lines = []
   testcase_json = {
       'id': '12345',
-      'crash_stacktrace': {'lines': stacktrace_lines},
+      'crash_stacktrace': {'lines': stacktrace_lines, 'revision': revision},
       'crash_type': 'bad_crash',
       'crash_state': 'halted',
-      'crash_revision': revision,
+      'crash_revision': 'bad revision',
       'metadata': {'build_url': build_url, 'gn_args': 'use_goma = true\n'},
       'testcase': {'window_argument': window_arg,
-                   'job_type': 'linux_asan_d8_dbg',
+                   'job_type': job_type,
                    'one_time_crasher_flag': False,
                    'minimized_arguments': minimized_args,
                    'absolute_path': '/absolute/path%s' % extension}}
@@ -63,6 +63,13 @@ class FileExtensionTest(helpers.ExtendedTestCase):
 
 class TestcaseSetupTest(helpers.ExtendedTestCase):
   """Tests populating the testcase parameters."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.testcase.get_command_line_file_path',
+        'clusterfuzz.testcase.get_environment_sections',
+        'clusterfuzz.testcase.get_file_contents_for_android',
+    ])
 
   def test_parsing_json(self):
     """Ensures the JSON is parsed correctly."""
@@ -116,6 +123,143 @@ class TestcaseSetupTest(helpers.ExtendedTestCase):
     self.assertEqual(result.build_url, 'build_url')
     self.assertTrue(result.reproducible)
     self.assertEqual(result.gestures, [])
+
+  def test_android(self):
+    """Tests android testcase."""
+    self.mock.get_environment_sections.return_value = 'ENV-SECTION'
+    self.mock.get_file_contents_for_android.return_value = {
+        'file': 'file-content'}
+    self.mock.get_command_line_file_path.return_value = 'path'
+
+    stacktrace_lines = [{'content': 'trace'}]
+    result = build_base_testcase(
+        stacktrace_lines=stacktrace_lines, revision=5, build_url='build_url',
+        gestures=True, job_type='android_something')
+    self.assertEqual(result.id, '12345')
+    self.assertEqual(result.revision, 5)
+    self.assertEqual(result.environment, {})
+    self.assertEqual(result.reproduction_args, '')
+    self.assertEqual(result.build_url, 'build_url')
+    self.assertTrue(result.reproducible)
+    self.assertEqual(result.gestures, [])
+    self.assertEqual(result.files, {'file': 'file-content'})
+    self.assertEqual(result.command_line_file_path, 'path')
+    self.mock.get_file_contents_for_android.assert_called_once_with(
+        'ENV-SECTION')
+    self.mock.get_environment_sections.assert_called_once_with(
+        [{'content': 'trace'}])
+
+
+class GetEnvironmentSectionsTest(helpers.ExtendedTestCase):
+  """Tests get_environment_sections."""
+
+  def test_get(self):
+    """Tests get."""
+    # pylint: disable=line-too-long
+    stacktrace = [
+        {'content': ''},
+        {'content': '[Environment] Build fingerprint = google/hammerhead/hammerhead:6.0.1/MOB31V/3693677:userdebug/dev-keys'},
+        {'content': '[Environment] Patch level: 2017-03-05'},
+        {'content': '[Environment] Local properties file = /data/local.prop with contents:'},
+        {'content': 'ro.audio.silent=1'},
+        {'content': 'ro.monkey=1'},
+        {'content': 'ro.setupwizard.mode=DISABLED'},
+        {'content': 'ro.test_harness=1'},
+        {'content': 'ro.telephony.disable-call=true'},
+        {'content': 'dalvik.vm.enableassertions='},
+        {'content': 'debug.assert=0'},
+        {'content': 'dalvik.vm.checkjni=true'},
+        {'content': 'debug.checkjni=1'},
+        {'content': '[Environment] Command line file = /data/local/chrome-command-line with contents:'},
+        {'content': 'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'},
+        {'content': '[Environment] ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1'},
+        {'content': ''},
+    ]
+
+    expected = [
+        'Build fingerprint = google/hammerhead/hammerhead:6.0.1/MOB31V/3693677:userdebug/dev-keys',
+        'Patch level: 2017-03-05',
+        ('Local properties file = /data/local.prop with contents:\n'
+         'ro.audio.silent=1\n'
+         'ro.monkey=1\n'
+         'ro.setupwizard.mode=DISABLED\n'
+         'ro.test_harness=1\n'
+         'ro.telephony.disable-call=true\n'
+         'dalvik.vm.enableassertions=\n'
+         'debug.assert=0\n'
+         'dalvik.vm.checkjni=true\n'
+         'debug.checkjni=1'),
+        ('Command line file = /data/local/chrome-command-line with contents:\n'
+         'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'),
+        'ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1',
+    ]
+    # pylint: enable=line-too-long
+    self.assertEqual(expected, testcase.get_environment_sections(stacktrace))
+
+
+class GetFileContentsForAndroidTest(helpers.ExtendedTestCase):
+  """Tests get_file_contents_for_android."""
+
+  def test_get(self):
+    """Tests get."""
+    # pylint: disable=line-too-long
+    sections = [
+        'Build fingerprint = google/hammerhead/hammerhead:6.0.1/MOB31V/3693677:userdebug/dev-keys\n',
+        'Patch level: 2017-03-05\n',
+        ('Local properties file = /data/local.prop with contents:\n'
+         'ro.audio.silent=1\n'
+         'ro.monkey=1\n'
+         'ro.setupwizard.mode=DISABLED\n'
+         'ro.test_harness=1\n'
+         'ro.telephony.disable-call=true\n'
+         'dalvik.vm.enableassertions=\n'
+         'debug.assert=0\n'
+         'dalvik.vm.checkjni=true\n'
+         'debug.checkjni=1'),
+        ('Command line file = /data/local/chrome-command-line with contents:\n'
+         'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'),
+        'ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1',
+    ]
+
+    expected = {
+        '/data/local.prop': (
+            'ro.audio.silent=1\n'
+            'ro.monkey=1\n'
+            'ro.setupwizard.mode=DISABLED\n'
+            'ro.test_harness=1\n'
+            'ro.telephony.disable-call=true\n'
+            'dalvik.vm.enableassertions=\n'
+            'debug.assert=0\n'
+            'dalvik.vm.checkjni=true\n'
+            'debug.checkjni=1'),
+        '/data/local/tmp/asan.options': (
+            'redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1'),
+    }
+    # pylint: enable=line-too-long
+
+    self.assertEqual(
+        expected, testcase.get_file_contents_for_android(sections))
+
+
+class GetCommandLineFilePathTest(helpers.ExtendedTestCase):
+  """Tests get_command_line_file_path."""
+
+  def test_get(self):
+    """Tests get."""
+    sections = [
+        ('Command line file = /data/local/chrome-command-line with contents:\n'
+         "doesn't matter"),
+    ]
+    self.assertEqual(
+        '/data/local/chrome-command-line',
+        testcase.get_command_line_file_path(sections))
+
+  def test_no_command_line(self):
+    """Tests no command line."""
+    sections = ['Test test']
+
+    with self.assertRaises(Exception):
+      testcase.get_command_line_file_path(sections)
 
 
 class DownloadTestcaseIfNeededTest(helpers.ExtendedTestCase):

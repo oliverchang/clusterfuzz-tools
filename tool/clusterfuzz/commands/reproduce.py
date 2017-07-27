@@ -156,7 +156,8 @@ def build_definition(job_definition, presets):
   }
   reproducer_map = {'Base': reproducers.BaseReproducer,
                     'LibfuzzerJob': reproducers.LibfuzzerJobReproducer,
-                    'LinuxChromeJob': reproducers.LinuxChromeJobReproducer}
+                    'LinuxChromeJob': reproducers.LinuxChromeJobReproducer,
+                    'Android': reproducers.AndroidChromeReproducer}
 
   result = parse_job_definition(job_definition, presets)
 
@@ -247,6 +248,9 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
   logger.debug('%s', str(options))
 
   current_testcase = get_testcase(testcase_id)
+  # A hack to download testcase early. Otherwise, OAuth access token might
+  # expire after compiling (~1h).
+  current_testcase.get_testcase_path()
   definition = get_definition(current_testcase.job_type, build)
 
   warn_unreproducible_if_needed(current_testcase)

@@ -294,3 +294,40 @@ class DifferentStacktraceError(ExpectedException):
         message=self.MESSAGE.format(count=count),
         exit_code=self.EXIT_CODE,
         extras={'signatures': crash_signatures})
+
+
+class GdbNotSupportedOnAndroidError(ExpectedException):
+  """An exception raised when debug is enabled on Android."""
+
+  MESSAGE = "--enable-debug (or gdb) isn't supported in Android."
+  EXIT_CODE = 59
+
+  def __init__(self):
+    super(GdbNotSupportedOnAndroidError, self).__init__(
+        message=self.MESSAGE, exit_code=self.EXIT_CODE)
+
+
+class WaitForAndroidAfterInstallingAsanError(ExpectedException):
+  """An exception is raised after installing ASAN on Android"""
+
+  MESSAGE = (
+      'Please wait until the Android device is rebooted and run the tool '
+      "again. If there's permission error, ensure that` adb remount` succeeds "
+      'and run the tool again.')
+  EXIT_CODE = 60
+
+  def __init__(self):
+    super(WaitForAndroidAfterInstallingAsanError, self).__init__(
+        message=self.MESSAGE, exit_code=self.EXIT_CODE)
+
+
+class NoAndroidDeviceIdError(ExpectedException):
+  """An exception is raised after installing ASAN on Android"""
+
+  MESSAGE = 'Please set the target Android device ID as the env {env_name}.'
+  EXIT_CODE = 61
+
+  def __init__(self, env_name):
+    super(NoAndroidDeviceIdError, self).__init__(
+        message=self.MESSAGE.format(env_name=env_name),
+        exit_code=self.EXIT_CODE)

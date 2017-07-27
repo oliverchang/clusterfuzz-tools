@@ -25,6 +25,7 @@ import time
 import psutil
 import xvfbwrapper
 
+from clusterfuzz import android
 from clusterfuzz import common
 from clusterfuzz import output_transformer
 from error import error
@@ -35,6 +36,7 @@ DEFAULT_GESTURE_TIME = 5
 TEST_TIMEOUT = 30
 USER_DATA_DIR_PATH = '/tmp/clusterfuzz-user-data-dir'
 USER_DATA_DIR_ARG = '--user-data-dir'
+ANDROID_SERIAL_ENV = 'ANDROID_SERIAL'
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -190,19 +192,24 @@ class BaseReproducer(object):
   def __init__(self, definition, binary_provider, testcase, sanitizer, options):
     self.definition = definition
     self.testcase = testcase
+    self.binary_provider = binary_provider
+    self.sanitizer = sanitizer
+    self.options = options
+    # TODO(tanin): remove these attributes. We shouldn't forward the
+    # attributes.
     self.original_testcase_path = testcase.absolute_path
     self.testcase_path = testcase.get_testcase_path()
     self.job_type = testcase.job_type
     self.environment = testcase.environment
     self.args = testcase.reproduction_args
+    # TODO(tanin): remove these attributes. We shouldn't forward the
+    # attributes.
     self.binary_path = binary_provider.get_binary_path()
     self.build_directory = binary_provider.get_build_dir_path()
     self.source_directory = binary_provider.get_source_dir_path()
     self.symbolizer_path = common.get_resource(
         0755, 'resources', 'llvm-symbolizer')
-    self.sanitizer = sanitizer
     self.gestures = testcase.gestures
-    self.options = options
     self.timeout = TEST_TIMEOUT
 
     self.gesture_start_time = (self.get_gesture_start_time() if self.gestures
@@ -240,6 +247,9 @@ class BaseReproducer(object):
     self.set_up_symbolizers_suppressions()
     self.setup_args()
 
+    # Ensure the testcase is setup correctly at the right path.
+    self.get_testcase_path()
+
   def reproduce_crash(self):
     """Reproduce the crash."""
     # read_buffer_length needs to be 1, and stdin needs to be UserStdin.
@@ -252,6 +262,12 @@ class BaseReproducer(object):
         redirect_stderr_to_stdout=True,
         stdin=common.UserStdin(),
         read_buffer_length=1)
+
+  @common.memoize
+  def get_testcase_path(self):
+    """Get the testcase path. This allows subclasses to perform necessary
+      operations to modify testcase path."""
+    return self.testcase_path
 
   @common.memoize
   def get_crash_signature(self):
@@ -284,6 +300,8 @@ class BaseReproducer(object):
     # TODO(tanin): refactor the condition to its own module function.
     if '%TESTCASE%' in self.args:
       self.args = self.args.replace('%TESTCASE%', self.testcase_path)
+    elif '%TESTCASE_FILE_URL%' in self.args:
+      self.args = self.args.replace('%TESTCASE_FILE_URL%', self.testcase_path)
     else:
       self.args += ' %s' % self.testcase_path
 
@@ -489,8 +507,10 @@ class LinuxChromeJobReproducer(BaseReproducer):
 
   def pre_build_steps(self):
     """Steps to run before building."""
+    # TODO(tanin): Move this to get_args.
     self.args = ensure_user_data_dir_if_needed(
         self.args, self.definition.require_user_data_dir)
+    # TODO(tanin): Move this to get_testcase_path.
     self.testcase_path = update_testcase_path_in_layout_test(
         self.testcase_path, self.original_testcase_path, self.source_directory)
 
@@ -546,3 +566,67 @@ class LinuxChromeJobReproducer(BaseReproducer):
           stdout_transformer=output_transformer.Identity(),
           read_buffer_length=1)
       return err, self.post_run_symbolize(out)
+
+
+class AndroidChromeReproducer(BaseReproducer):
+  """Reproduce an android chromium job type."""
+
+  def reproduce_debug(self):
+    """Reproduce with GDB isn't supported in Android."""
+    raise error.GdbNotSupportedOnAndroidError()
+
+  @common.memoize
+  def get_device_id(self):
+    """Get the android device."""
+    device_id = os.environ.get(ANDROID_SERIAL_ENV)
+
+    if not device_id:
+      raise error.NoAndroidDeviceIdError(ANDROID_SERIAL_ENV)
+
+    return device_id
+
+  @common.memoize
+  def get_package_name(self):
+    """Get package name."""
+    return 'org.chromium.chrome'
+
+  @common.memoize
+  def get_testcase_path(self):
+    """Get the testcase path."""
+    testcase_filename = os.path.basename(self.testcase_path)
+    android.adb('push %s /sdcard/' % self.testcase_path)
+    return 'file:///sdcard/%s' % testcase_filename
+
+  def pre_build_steps(self):
+    """Pre-build step."""
+    # Ensure that the user sets ANDROID_SERIAL. Because adb uses it.
+    device_id = self.get_device_id()
+    android.ensure_root()
+    android.ensure_active()
+    android.ensure_asan(
+        source_dir_path=self.binary_provider.get_source_dir_path(),
+        device_id=device_id)
+
+    super(AndroidChromeReproducer, self).pre_build_steps()
+
+    for path, content in self.testcase.files.iteritems():
+      android.write_content(path, content)
+    android.write_content(
+        self.testcase.command_line_file_path, 'chrome %s' % self.args)
+    android.adb('install -r %s' % self.binary_path)
+
+  def reproduce_crash(self):
+    """Reproduce crash on Android."""
+    android.reset(self.get_package_name())
+    android.ensure_active()
+    android.clear_log()
+
+    ret_value, _ = android.adb_shell(
+        'am start -a android.intent.action.MAIN '
+        "-n %s/com.google.android.apps.chrome.Main '%s'" %
+        (self.get_package_name(), self.get_testcase_path()))
+    time.sleep(TEST_TIMEOUT)
+
+    output = android.get_log()
+    android.kill(self.get_package_name())
+    return ret_value, android.filter_log(output)

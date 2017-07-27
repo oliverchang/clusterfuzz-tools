@@ -23,8 +23,12 @@ def make_testcase(
     gestures='gestures',
     crash_type='type',
     crash_state='state1\nstate2',
-    raw_gn_args='a=b\nc=d'):
+    raw_gn_args='a=b\nc=d',
+    files=None,
+    command_line_file_path=None):
   """Make a testcase."""
+  if files is None:
+    files = {'test.conf': 'test-conf-content'}
   return testcase.Testcase(
       testcase_id=testcase_id,
       stacktrace_lines=stacktrace_lines,
@@ -39,7 +43,9 @@ def make_testcase(
       gestures=gestures,
       crash_type=crash_type,
       crash_state=crash_state,
-      raw_gn_args=raw_gn_args)
+      raw_gn_args=raw_gn_args,
+      files=files,
+      command_line_file_path=command_line_file_path)
 
 
 def make_definition(
