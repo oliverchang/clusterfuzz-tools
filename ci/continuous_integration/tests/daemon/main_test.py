@@ -407,6 +407,6 @@ class CleanTest(helpers.ExtendedTestCase):
         mock.call('rm -rf tools', cwd=main.CHROMIUM_SRC),
         mock.call('git checkout HEAD tools -f', cwd=main.CHROMIUM_SRC),
         mock.call(
-            'gclient sync --force --reset', cwd=main.CHROMIUM_SRC,
+            'gclient sync --reset', cwd=main.CHROMIUM_SRC,
             env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),
     ])

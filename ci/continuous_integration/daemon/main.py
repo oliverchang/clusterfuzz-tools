@@ -229,7 +229,7 @@ def clean():
 
   # --reset resets all uncommitted changes in the sub repo.
   process.call(
-      'gclient sync --force --reset',
+      'gclient sync --reset',
       cwd=CHROMIUM_SRC,
       env={'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)},
   )
