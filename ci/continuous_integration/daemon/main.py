@@ -35,6 +35,10 @@ PROCESSED_TESTCASE_IDS = LRUCacheDict(max_size=1000, expiration=172800)
 # The options that will be tested on the CI.
 TEST_OPTIONS = ['', '--current --skip-deps']
 
+# The dir to be removed and checked out. See:
+# https://github.com/google/clusterfuzz-tools/issues/429
+CLEAN_CHROMIUM_SUBDIRS = ['testing', 'third_party', 'tools']
+
 # The number of seconds to sleep after each test run to avoid DDOS.
 SLEEP_TIME = 60
 
@@ -218,18 +222,17 @@ def clean():
   # https://github.com/google/clusterfuzz-tools/issues/426
   process.call('git checkout origin/master -f', cwd=CHROMIUM_SRC)
 
+  # Manually reset dirs.
+  for path in CLEAN_CHROMIUM_SUBDIRS:
+    process.call('rm -rf %s' % path, cwd=CHROMIUM_SRC)
+    process.call('git checkout HEAD %s -f' % path, cwd=CHROMIUM_SRC)
+
   # --reset resets all uncommitted changes in the sub repo.
   process.call(
-      'gclient sync --reset',
+      'gclient sync --force --reset',
       cwd=CHROMIUM_SRC,
       env={'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)},
   )
-
-  # Clean again because, sometimes, `gclient sync` makes the repo dirty.
-  process.call('git clean -ffdd', cwd=CHROMIUM_SRC)
-  process.call('git reset --hard', cwd=CHROMIUM_SRC)
-  process.call('git add --all', cwd=CHROMIUM_SRC)
-  process.call('git reset --hard', cwd=CHROMIUM_SRC)
 
 
 def reset_and_run_testcase(testcase_id, category, release):

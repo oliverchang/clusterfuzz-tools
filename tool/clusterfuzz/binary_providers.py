@@ -90,7 +90,7 @@ def is_repo_dirty(path):
   """Returns true if the source dir has uncommitted changes."""
   # `git diff` always return 0 (even when there's change).
   _, diff_result = common.execute(
-      'git', 'diff', path, print_command=False, print_output=False)
+      'git', 'diff', path, print_command=True, print_output=True)
   return bool(diff_result)
 
 

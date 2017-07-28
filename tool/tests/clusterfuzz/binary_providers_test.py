@@ -815,7 +815,7 @@ class IsRepoDirtyTest(helpers.ExtendedTestCase):
     self.assertFalse(binary_providers.is_repo_dirty('/dir'))
 
     self.mock.execute.assert_called_once_with(
-        'git', 'diff', '/dir', print_command=False, print_output=False)
+        'git', 'diff', '/dir', print_command=True, print_output=True)
 
   def test_dirty(self):
     """Test not exists."""
@@ -823,7 +823,7 @@ class IsRepoDirtyTest(helpers.ExtendedTestCase):
     self.assertTrue(binary_providers.is_repo_dirty('/dir'))
 
     self.mock.execute.assert_called_once_with(
-        'git', 'diff', '/dir', print_command=False, print_output=False)
+        'git', 'diff', '/dir', print_command=True, print_output=True)
 
 
 class SetupDebugSymbolIfNeededTest(helpers.ExtendedTestCase):
