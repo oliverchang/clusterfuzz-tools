@@ -37,7 +37,14 @@ CHECKOUT_MESSAGE = (
     '{cmd} in {source_dir}?')
 ARGS_GN_FILENAME = 'args.gn'
 GOMA_DIR = os.path.expanduser(os.path.join('~', 'goma'))
-
+NINJA_ENV = {
+    'ASAN_OPTIONS': '',
+    'CFI_OPTIONS': '',
+    'LSAN_OPTIONS': '',
+    'MSAN_OPTIONS': '',
+    'TSAN_OPTIONS': '',
+    'UBSAN_OPTIONS': '',
+}
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -340,7 +347,6 @@ class GenericBuilder(BinaryProvider):
         options=options)
     # These attributes don't need computation. Therefore, they are not methods.
     self.extra_gn_args = {}
-    self.gn_gen_flags = '--check'
 
   @common.memoize
   def get_target_name(self):
@@ -401,7 +407,7 @@ class GenericBuilder(BinaryProvider):
         args_gn_path, content)
 
     common.execute(
-        'gn', 'gen %s %s' % (self.gn_gen_flags, self.get_build_dir_path()),
+        'gn', 'gen %s' % (self.get_build_dir_path()),
         self.get_source_dir_path())
 
   def install_deps(self):
@@ -447,7 +453,10 @@ class GenericBuilder(BinaryProvider):
                  self.options.goma_threads, self.options.disable_goma),
              goma_load=compute_goma_load(self.options.goma_load),
              target=self.get_target_name())),
+        # Unset the memory tools' envs. See:
+        # https://github.com/google/clusterfuzz-tools/issues/433
         self.get_source_dir_path(),
+        env=NINJA_ENV,
         capture_output=False,
         stdout_transformer=output_transformer.Ninja())
 
@@ -461,7 +470,6 @@ class PdfiumBuilder(GenericBuilder):
         definition=definition,
         options=options)
     self.extra_gn_args = {'pdf_is_standalone': 'true'}
-    self.gn_gen_flags = ''
 
   @common.memoize
   def get_git_sha(self):

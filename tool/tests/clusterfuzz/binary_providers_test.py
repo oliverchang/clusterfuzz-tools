@@ -283,7 +283,7 @@ class GenericBuilderGnGenTest(helpers.ExtendedTestCase):
       self.assertEqual(f.read(), 'a = b')
     self.mock.get_gn_args.assert_called_once_with(self.builder)
     self.mock.execute.assert_called_once_with(
-        'gn', 'gen --check /test/build_dir', '/chrome/source/dir')
+        'gn', 'gen /test/build_dir', '/chrome/source/dir')
     self.mock.edit_if_needed.assert_called_once_with(
         'a = b', prefix=mock.ANY, comment=mock.ANY, should_edit=True)
 
@@ -419,6 +419,7 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
         ("-w 'dupbuild=err' -C /chrome/source/out/clusterfuzz_54321 "
          '-j 120 -l 8 d8'),
         '/chrome/source',
+        env=binary_providers.NINJA_ENV,
         capture_output=False,
         stdout_transformer=mock.ANY)
     self.assertIsInstance(
