@@ -56,6 +56,15 @@ AUTH_HEADER_FILE = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'auth_header')
 DOMAIN_NAME = 'clusterfuzz.com'
 TERMINAL_WIDTH = get_terminal_size().columns
 HTTP_CACHE_TTL = 2 * 60
+# See: https://github.com/google/clusterfuzz-tools/issues/433
+BLACKLISTED_ENVS = {
+    'ASAN_OPTIONS': '',
+    'CFI_OPTIONS': '',
+    'LSAN_OPTIONS': '',
+    'MSAN_OPTIONS': '',
+    'TSAN_OPTIONS': '',
+    'UBSAN_OPTIONS': '',
+}
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -342,6 +351,8 @@ def start_execute(
     logger.debug(log)
 
   final_env = os.environ.copy()
+  # See: https://github.com/google/clusterfuzz-tools/issues/433
+  final_env.update(BLACKLISTED_ENVS)
   final_env.update(sanitized_env)
 
   proc = subprocess.Popen(

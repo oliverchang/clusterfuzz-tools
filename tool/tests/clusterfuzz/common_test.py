@@ -177,7 +177,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd='~/working/directory',
-        env={'OS': 'ENVIRON', 'TEST': 'VALUE'},
+        env=dict({'OS': 'ENVIRON', 'TEST': 'VALUE'}, **common.BLACKLISTED_ENVS),
         preexec_fn=os.setsid)
 
   def test_process_runs_successfully(self):

@@ -37,14 +37,6 @@ CHECKOUT_MESSAGE = (
     '{cmd} in {source_dir}?')
 ARGS_GN_FILENAME = 'args.gn'
 GOMA_DIR = os.path.expanduser(os.path.join('~', 'goma'))
-NINJA_ENV = {
-    'ASAN_OPTIONS': '',
-    'CFI_OPTIONS': '',
-    'LSAN_OPTIONS': '',
-    'MSAN_OPTIONS': '',
-    'TSAN_OPTIONS': '',
-    'UBSAN_OPTIONS': '',
-}
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -456,7 +448,6 @@ class GenericBuilder(BinaryProvider):
         # Unset the memory tools' envs. See:
         # https://github.com/google/clusterfuzz-tools/issues/433
         self.get_source_dir_path(),
-        env=NINJA_ENV,
         capture_output=False,
         stdout_transformer=output_transformer.Ninja())
 

@@ -419,7 +419,6 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
         ("-w 'dupbuild=err' -C /chrome/source/out/clusterfuzz_54321 "
          '-j 120 -l 8 d8'),
         '/chrome/source',
-        env=binary_providers.NINJA_ENV,
         capture_output=False,
         stdout_transformer=mock.ANY)
     self.assertIsInstance(
