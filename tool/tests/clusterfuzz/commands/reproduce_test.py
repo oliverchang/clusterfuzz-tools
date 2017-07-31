@@ -17,6 +17,7 @@ import json
 import os
 import mock
 
+from clusterfuzz import binary_providers
 from clusterfuzz.commands import reproduce
 from error import error
 from tests import libs
@@ -51,9 +52,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.chrome_src = '/usr/local/google/home/user/repos/chromium/src'
     self.mock_os_environment({'V8_SRC': '/v8/src', 'CHROME_SRC': '/pdf/src'})
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.DownloadedBinary',
-        'clusterfuzz.binary_providers.V8Builder',
-        'clusterfuzz.binary_providers.ChromiumBuilder',
+        'clusterfuzz.commands.reproduce.create_builder_class',
         'clusterfuzz.commands.reproduce.get_definition',
         'clusterfuzz.commands.reproduce.get_testcase',
         'clusterfuzz.testcase.Testcase.get_testcase_path',
@@ -62,11 +61,10 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.reproducer = mock.Mock()
     self.definition = mock.Mock()
 
-    self.definition.builder.return_value = self.builder
     self.definition.reproducer.return_value = self.reproducer
 
     self.mock.get_definition.return_value = self.definition
-    self.mock.DownloadedBinary.return_value = self.builder
+    self.mock.create_builder_class.return_value = self.builder
 
     self.testcase = mock.Mock(
         id='1234', build_url='chrome_build_url', revision=123456,
@@ -74,29 +72,6 @@ class ExecuteTest(helpers.ExtendedTestCase):
         reproduction_args='--always-opt')
     self.mock.get_testcase.return_value = self.testcase
     self.options = libs.make_options(testcase_id=str(self.testcase.id))
-
-  def test_download_no_defined_binary(self):
-    """Test what happens when no binary name is defined."""
-    self.definition.binary_name = None
-    self.testcase.stacktrace_lines = [
-        {'content': 'incorrect'}, {'content': '[Environment] A = b'},
-        {'content': ('Running command: path/to/stacktrace_binary --args --arg2 '
-                     '/path/to/testcase')}]
-
-    self.options.build = 'download'
-    reproduce.execute(**vars(self.options))
-
-    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.mock.DownloadedBinary.assert_called_once_with(
-        testcase=self.testcase, definition=self.definition,
-        options=self.options)
-    self.definition.reproducer.assert_called_once_with(
-        binary_provider=self.mock.DownloadedBinary.return_value,
-        definition=self.definition,
-        testcase=self.testcase,
-        sanitizer=self.definition.sanitizer,
-        options=self.options)
-    self.assertEqual(0, self.builder.build.call_count)
 
   def test_grab_data_with_download(self):
     """Ensures all method calls are made correctly when downloading."""
@@ -110,16 +85,16 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.mock.DownloadedBinary.assert_called_once_with(
+    self.builder.assert_called_once_with(
         testcase=self.testcase, definition=self.definition,
         options=self.options)
     self.definition.reproducer.assert_called_once_with(
-        binary_provider=self.mock.DownloadedBinary.return_value,
+        binary_provider=self.builder.return_value,
         definition=self.definition,
         testcase=self.testcase,
         sanitizer=self.definition.sanitizer,
         options=self.options)
-    self.assertEqual(0, self.builder.build.call_count)
+    self.builder.return_value.build.assert_called_once_with()
 
   def test_grab_data_standalone(self):
     """Ensures all method calls are made correctly when building locally."""
@@ -127,17 +102,28 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase.assert_called_once_with(self.testcase.id)
-    self.definition.builder.assert_called_once_with(
+    self.builder.assert_called_once_with(
         testcase=self.testcase,
         definition=self.definition,
         options=self.options)
     self.definition.reproducer.assert_called_once_with(
-        binary_provider=self.builder,
+        binary_provider=self.builder.return_value,
         definition=self.definition,
         testcase=self.testcase,
         sanitizer=self.definition.sanitizer,
         options=self.options)
-    self.builder.build.assert_called_once_with()
+    self.builder.return_value.build.assert_called_once_with()
+
+
+class CreateBuilderClassTest(helpers.ExtendedTestCase):
+  """Tests create_builder_class."""
+
+  def test_download(self):
+    """Tests construct downloaded binary class."""
+    definition = mock.Mock(builder=binary_providers.LibfuzzerAndAflBuilder)
+    klass = reproduce.create_builder_class('download', definition)
+
+    self.assertEqual('DownloadedBinaryLibfuzzerAndAflBuilder', klass.__name__)
 
 
 class SendRequestTest(helpers.ExtendedTestCase):

@@ -18,8 +18,10 @@ import json
 import logging
 import multiprocessing
 import os
+import shutil
 import stat
 import string
+import tempfile
 import urllib
 
 import urlfetch
@@ -179,7 +181,19 @@ def serialize_gn_args(args_hash):
   return '\n'.join(args)
 
 
-def download_build_if_needed(dest, url, binary_name):
+def find_file(target_filename, parent_dir):
+  """Return the full path under parent_dir. In Chrome, the binary is
+    inside a sub-directory. But, in Android, the binary is in the parent dir."""
+  for root, _, files in os.walk(parent_dir):
+    for filename in files:
+      if filename == target_filename:
+        return os.path.join(root, filename)
+
+  raise Exception(
+      'Cannot find the file name (%s) in %s.' % (target_filename, parent_dir))
+
+
+def download_build_if_needed(dest, url):
   """Download and extract a build (if it's not already there)."""
   if os.path.exists(dest):
     return dest
@@ -194,18 +208,17 @@ def download_build_if_needed(dest, url, binary_name):
   filename = os.path.basename(gsutil_path)
   saved_file = os.path.join(common.CLUSTERFUZZ_CACHE_DIR, filename)
 
-  common.execute(
-      'unzip', '-q %s -d %s' % (saved_file, common.CLUSTERFUZZ_BUILDS_DIR),
-      cwd=common.CLUSTERFUZZ_DIR)
+  tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_CACHE_DIR)
+  common.execute('unzip', '-q %s -d %s' % (saved_file, tmp_dir_path), cwd='.')
+
+  # args.gn is guaranteed to be in the wanted folder. In Chrome, it's under a
+  # sub-directory. In Android, it's in the top dir.
+  root_dir = find_file('args.gn', tmp_dir_path)
+  shutil.move(os.path.dirname(root_dir), dest)
 
   logger.info('Cleaning up...')
-  os.remove(saved_file)
-  os.rename(os.path.join(
-      common.CLUSTERFUZZ_BUILDS_DIR, os.path.splitext(filename)[0]), dest)
-
-  binary_location = os.path.join(dest, binary_name)
-  stats = os.stat(binary_location)
-  os.chmod(binary_location, stats.st_mode | stat.S_IEXEC)
+  common.delete_if_exists(saved_file)
+  common.delete_if_exists(tmp_dir_path)
 
 
 def git_checkout(sha, revision, source_dir_path):
@@ -290,8 +303,13 @@ class BinaryProvider(object):
     self.definition = definition
     self.options = options
 
+  @common.memoize
   def get_binary_path(self):
-    return '%s/%s' % (self.get_build_dir_path(), self.get_binary_name())
+    """Return binary path and ensure it's executable."""
+    path = '%s/%s' % (self.get_build_dir_path(), self.get_binary_name())
+    stats = os.stat(path)
+    os.chmod(path, stats.st_mode | stat.S_IEXEC)
+    return path
 
   def get_build_dir_path(self):
     """Return the build directory."""
@@ -311,12 +329,7 @@ class DownloadedBinary(BinaryProvider):
     """Returns the location of the correct build to use for reproduction."""
     path = os.path.join(
         common.CLUSTERFUZZ_BUILDS_DIR, '%s_downloaded_build' % self.testcase.id)
-    # TODO(tanin): This doesn't work with libfuzzer or afl because there's no
-    # binary_name. This looks like we need to use the composition pattern.
-    # It's not a big deal right now because libfuzzer are often reproducible
-    # from source, so none uses this yet.
-    download_build_if_needed(
-        path, self.testcase.build_url, self.get_binary_name())
+    download_build_if_needed(path, self.testcase.build_url)
     return path
 
   @common.memoize
@@ -324,6 +337,9 @@ class DownloadedBinary(BinaryProvider):
     """Return the chromium source dir path."""
     # Need asan_symbolizer.py from Chromium's source code.
     return get_or_ask_for_source_location('chromium')
+
+  def build(self):
+    """Do nothing."""
 
 
 class GenericBuilder(BinaryProvider):
@@ -589,5 +605,7 @@ class V8Builder32Bit(V8Builder):
     install_build_deps_32bit(self.get_source_dir_path())
 
 
+# TODO(tanin): Refactor to use
+# clusterfuzz.commandsreproduce.create_builder_class.
 class LibfuzzerMsanBuilder(MsanChromiumBuilder, LibfuzzerAndAflBuilder):
   """Build libfuzzer_chrome_msan."""

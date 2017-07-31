@@ -225,6 +225,19 @@ def warn_unreproducible_if_needed(current_testcase):
         common.BASH_YELLOW_MARKER))
 
 
+def create_builder_class(build, definition):
+  """Create a builder class. This reduces redundant code. For example,
+    LibfuzzerAndAflBuilder's methods can be used with downloaded build and
+    locally-built build."""
+  types = []
+  if build == 'download':
+    types.append(binary_providers.DownloadedBinary)
+  types.append(definition.builder)
+
+  name = ''.join([t.__name__ for t in types])
+  return type(name, tuple(types), {})
+
+
 @stackdriver_logging.log
 def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
             iterations, disable_xvfb, target_args, edit_mode, skip_deps,
@@ -255,17 +268,11 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
 
   warn_unreproducible_if_needed(current_testcase)
 
-  if build == 'download':
-    binary_provider = binary_providers.DownloadedBinary(
-        testcase=current_testcase,
-        definition=definition,
-        options=options)
-  else:
-    binary_provider = definition.builder(
-        testcase=current_testcase,
-        definition=definition,
-        options=options)
-    binary_provider.build()
+  binary_provider = create_builder_class(build, definition)(
+      testcase=current_testcase,
+      definition=definition,
+      options=options)
+  binary_provider.build()
 
   reproducer = definition.reproducer(
       definition=definition,

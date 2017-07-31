@@ -86,50 +86,76 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
+        'clusterfuzz.common.delete_if_exists',
         'clusterfuzz.common.execute',
         'clusterfuzz.common.ensure_dir',
         'clusterfuzz.common.gsutil',
-        'clusterfuzz.binary_providers.get_or_ask_for_source_location',
-        'os.remove',
-        'os.rename',
-        'os.chmod',
-        'os.stat',
+        'clusterfuzz.binary_providers.find_file',
+        'tempfile.mkdtemp',
+        'shutil.move',
         'os.path.exists'
     ])
 
     self.dest_path = '/fake/dest'
-    self.binary_name = 'binary'
     self.build_url = 'https://storage.cloud.google.com/test/test2/abc.zip'
 
   def test_already_download(self):
     """Tests the exit when build data is already returned."""
     self.mock.exists.return_value = True
     binary_providers.download_build_if_needed(
-        self.dest_path, self.build_url, self.binary_name)
+        self.dest_path, self.build_url)
     self.assert_n_calls(0, [self.mock.execute])
 
   def test_get_build_data(self):
     """Tests extracting, moving and renaming the build data.."""
-    self.mock.stat.return_value = mock.Mock(st_mode=0000)
     self.mock.exists.return_value = False
+    self.mock.mkdtemp.return_value = '/tmp/random'
+    self.mock.find_file.return_value = '/tmp/random/sub/args.gn'
 
     binary_providers.download_build_if_needed(
-        self.dest_path, self.build_url, self.binary_name)
+        self.dest_path, self.build_url)
 
     self.mock.execute.assert_called_once_with(
         'unzip', '-q %s -d %s' % (
             os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'),
-            common.CLUSTERFUZZ_BUILDS_DIR),
-        cwd=common.CLUSTERFUZZ_DIR
+            self.mock.mkdtemp.return_value),
+        cwd='.'
     )
-    self.mock.remove.assert_called_once_with(
-        os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'))
-    self.mock.rename.assert_called_once_with(
-        os.path.join(common.CLUSTERFUZZ_BUILDS_DIR, 'abc'), self.dest_path)
+    self.assert_exact_calls(self.mock.delete_if_exists, [
+        mock.call(os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip')),
+        mock.call(self.mock.mkdtemp.return_value),
+    ])
+    self.mock.move.assert_called_once_with(
+        '/tmp/random/sub', self.dest_path)
     self.mock.gsutil.assert_called_once_with(
         'cp gs://test/test2/abc.zip .', common.CLUSTERFUZZ_CACHE_DIR)
-    self.mock.chmod.assert_called_once_with(
-        os.path.join(self.dest_path, 'binary'), 64)
+    self.mock.find_file.assert_called_once_with(
+        'args.gn', self.mock.mkdtemp.return_value)
+
+
+class FindFileTest(helpers.ExtendedTestCase):
+  """Tests find_file."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+
+  def test_not_found(self):
+    """Tests not found."""
+    os.makedirs('/tmp/test/sub')
+    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
+
+    with self.assertRaises(Exception):
+      binary_providers.find_file('args.gn', '/tmp/test')
+
+  def test_find(self):
+    """Tests not found."""
+    os.makedirs('/tmp/test/sub')
+    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
+    self.fs.CreateFile('/tmp/test/sub/args.gn', contents='test')
+
+    self.assertEqual(
+        '/tmp/test/sub/args.gn',
+        binary_providers.find_file('args.gn', '/tmp/test'))
 
 
 class GetBinaryPathTest(helpers.ExtendedTestCase):
@@ -137,10 +163,14 @@ class GetBinaryPathTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.BinaryProvider.get_build_dir_path'])
+        'clusterfuzz.binary_providers.BinaryProvider.get_build_dir_path',
+        'os.stat',
+        'os.chmod'
+    ])
 
   def test_call(self):
     """Tests calling the method."""
+    self.mock.stat.return_value = mock.Mock(st_mode=0600)
 
     build_dir = os.path.expanduser(os.path.join(
         '~', 'chrome_src', 'out', '12345_build'))
@@ -150,10 +180,14 @@ class GetBinaryPathTest(helpers.ExtendedTestCase):
         libs.make_testcase(testcase_id=12345, build_url='build_url'),
         libs.make_definition(binary_name='d8'),
         libs.make_options())
-    self.assertEqual(os.path.join(build_dir, 'd8'), provider.get_binary_path())
+
+    path = os.path.join(build_dir, 'd8')
+    self.assertEqual(path, provider.get_binary_path())
+    self.mock.stat.assert_called_once_with(path)
+    self.mock.chmod.assert_called_once_with(path, 0700)
 
 
-class DownloadedBinaryGetTest(helpers.ExtendedTestCase):
+class DownloadedBinaryTest(helpers.ExtendedTestCase):
   """Test DownloadedBinary."""
 
   def setUp(self):
@@ -180,7 +214,7 @@ class DownloadedBinaryGetTest(helpers.ExtendedTestCase):
 
     self.assertEqual(expected_path, self.provider.get_build_dir_path())
     self.mock.download_build_if_needed.assert_called_once_with(
-        expected_path, self.testcase.build_url, self.definition.binary_name)
+        expected_path, self.testcase.build_url)
 
 
 class GenericBuilderGetSourceDirPathTest(helpers.ExtendedTestCase):
