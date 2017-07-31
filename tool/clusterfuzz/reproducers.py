@@ -586,11 +586,6 @@ class AndroidChromeReproducer(BaseReproducer):
     return device_id
 
   @common.memoize
-  def get_package_name(self):
-    """Get package name."""
-    return 'org.chromium.chrome'
-
-  @common.memoize
   def get_testcase_path(self):
     """Get the testcase path."""
     testcase_filename = os.path.basename(self.testcase_path)
@@ -617,16 +612,18 @@ class AndroidChromeReproducer(BaseReproducer):
 
   def reproduce_crash(self):
     """Reproduce crash on Android."""
-    android.reset(self.get_package_name())
+    android.reset(self.testcase.android_package_name)
     android.ensure_active()
     android.clear_log()
 
     ret_value, _ = android.adb_shell(
         'am start -a android.intent.action.MAIN '
-        "-n %s/com.google.android.apps.chrome.Main '%s'" %
-        (self.get_package_name(), self.get_testcase_path()))
+        "-n {package_name}/{class_name} '{testcase_path}'".format(
+            package_name=self.testcase.android_package_name,
+            class_name=self.testcase.android_main_class_name,
+            testcase_path=self.get_testcase_path()))
     time.sleep(TEST_TIMEOUT)
 
     output = android.get_log()
-    android.kill(self.get_package_name())
+    android.kill(self.testcase.android_package_name)
     return ret_value, android.filter_log(output)

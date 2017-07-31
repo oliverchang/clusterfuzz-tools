@@ -145,6 +145,7 @@ def build_definition(job_definition, presets):
       'CfiChromium': binary_providers.CfiChromiumBuilder,
       'Chromium_32': binary_providers.ChromiumBuilder32Bit,
       'Chromium': binary_providers.ChromiumBuilder,
+      'Clankium': binary_providers.ClankiumBuilder,
       'MsanChromium': binary_providers.MsanChromiumBuilder,
       'MsanV8': binary_providers.MsanV8Builder,
       'Pdfium': binary_providers.PdfiumBuilder,
@@ -168,7 +169,8 @@ def build_definition(job_definition, presets):
       binary_name=result.get('binary'),
       sanitizer=result['sanitizer'],
       target=result.get('target'),
-      require_user_data_dir=result.get('require_user_data_dir', False))
+      require_user_data_dir=result.get('require_user_data_dir', False),
+      revision_url=result.get('revision_url', None))
 
 
 def get_supported_jobs():

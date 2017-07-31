@@ -33,10 +33,10 @@ def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
     stacktrace_lines = []
   testcase_json = {
       'id': '12345',
-      'crash_stacktrace': {'lines': stacktrace_lines, 'revision': revision},
+      'crash_stacktrace': {'lines': stacktrace_lines, 'revision': 'bad'},
       'crash_type': 'bad_crash',
       'crash_state': 'halted',
-      'crash_revision': 'bad revision',
+      'crash_revision': revision,
       'metadata': {'build_url': build_url, 'gn_args': 'use_goma = true\n'},
       'testcase': {'window_argument': window_arg,
                    'job_type': job_type,
@@ -69,6 +69,7 @@ class TestcaseSetupTest(helpers.ExtendedTestCase):
         'clusterfuzz.testcase.get_command_line_file_path',
         'clusterfuzz.testcase.get_environment_sections',
         'clusterfuzz.testcase.get_file_contents_for_android',
+        'clusterfuzz.testcase.get_package_and_main_class_names',
     ])
 
   def test_parsing_json(self):
@@ -130,6 +131,8 @@ class TestcaseSetupTest(helpers.ExtendedTestCase):
     self.mock.get_file_contents_for_android.return_value = {
         'file': 'file-content'}
     self.mock.get_command_line_file_path.return_value = 'path'
+    self.mock.get_package_and_main_class_names.return_value = (
+        'package', 'class')
 
     stacktrace_lines = [{'content': 'trace'}]
     result = build_base_testcase(
@@ -144,6 +147,8 @@ class TestcaseSetupTest(helpers.ExtendedTestCase):
     self.assertEqual(result.gestures, [])
     self.assertEqual(result.files, {'file': 'file-content'})
     self.assertEqual(result.command_line_file_path, 'path')
+    self.assertEqual(result.android_package_name, 'package')
+    self.assertEqual(result.android_main_class_name, 'class')
     self.mock.get_file_contents_for_android.assert_called_once_with(
         'ENV-SECTION')
     self.mock.get_environment_sections.assert_called_once_with(
@@ -364,3 +369,29 @@ class GetTrueTestcasePathTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.rename, [
         mock.call(os.path.join(self.testcase_dir_path, 'abcd.js'),
                   os.path.join(self.testcase_dir_path, 'testcase.js'))])
+
+
+class GetPackageAndMainClassNamesTest(helpers.ExtendedTestCase):
+  """Tests get_package_and_main_class_names."""
+
+  def test_get(self):
+    """Tests get."""
+    lines = [
+        {'content': 'random'},
+        {'content': (
+            'shell am start -a android.intent.action.VIEW -n '
+            'org.chromium.webview_shell/.WebViewBrowserActivity -d '
+            "'file:///sdcard/fuzzer-testcases/fuzz-88.html'")}
+    ]
+    self.assertEqual(
+        ('org.chromium.webview_shell', '.WebViewBrowserActivity'),
+        testcase.get_package_and_main_class_names(lines))
+
+  def test_error(self):
+    """Tests error."""
+    lines = [
+        {'content': 'random'},
+        {'content': 'another random'}
+    ]
+    with self.assertRaises(Exception):
+      testcase.get_package_and_main_class_names(lines)

@@ -25,7 +25,9 @@ def make_testcase(
     crash_state='state1\nstate2',
     raw_gn_args='a=b\nc=d',
     files=None,
-    command_line_file_path=None):
+    command_line_file_path=None,
+    android_package_name=None,
+    android_main_class_name=None):
   """Make a testcase."""
   if files is None:
     files = {'test.conf': 'test-conf-content'}
@@ -45,7 +47,9 @@ def make_testcase(
       crash_state=crash_state,
       raw_gn_args=raw_gn_args,
       files=files,
-      command_line_file_path=command_line_file_path)
+      command_line_file_path=command_line_file_path,
+      android_package_name=android_package_name,
+      android_main_class_name=android_main_class_name)
 
 
 def make_definition(
@@ -55,7 +59,8 @@ def make_definition(
     binary_name='chrome',
     sanitizer='ASAN',
     target='chrome_builder_asan',
-    require_user_data_dir=True):
+    require_user_data_dir=True,
+    revision_url=None):
   """Make a definition."""
   return common.Definition(
       builder=builder,
@@ -64,7 +69,8 @@ def make_definition(
       binary_name=binary_name,
       sanitizer=sanitizer,
       target=target,
-      require_user_data_dir=require_user_data_dir)
+      require_user_data_dir=require_user_data_dir,
+      revision_url=revision_url)
 
 
 def make_options(

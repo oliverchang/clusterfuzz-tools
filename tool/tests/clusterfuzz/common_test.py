@@ -353,7 +353,7 @@ class DefinitionTest(helpers.ExtendedTestCase):
       common.Definition(
           builder='builder', source_name='chromium', reproducer='reproducer',
           binary_name=None, sanitizer=None, target=None,
-          require_user_data_dir=False)
+          require_user_data_dir=False, revision_url=None)
 
 
 class WaitTimeoutTest(helpers.ExtendedTestCase):

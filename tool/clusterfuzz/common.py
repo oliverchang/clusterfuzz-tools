@@ -50,6 +50,8 @@ DEFAULT_READ_BUFFER_LENGTH = 10
 
 CLUSTERFUZZ_DIR = os.path.expanduser(os.path.join('~', '.clusterfuzz'))
 CLUSTERFUZZ_CACHE_DIR = os.path.join(CLUSTERFUZZ_DIR, 'cache')
+# Because /tmp is too small on Goobuntu.
+CLUSTERFUZZ_TMP_DIR = os.path.join(CLUSTERFUZZ_DIR, 'cache', 'tmp')
 CLUSTERFUZZ_TESTCASES_DIR = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'testcases')
 CLUSTERFUZZ_BUILDS_DIR = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'builds')
 AUTH_HEADER_FILE = os.path.join(CLUSTERFUZZ_CACHE_DIR, 'auth_header')
@@ -175,7 +177,7 @@ class Definition(object):
   """Holds all the necessary information to initialize a job's builder."""
 
   def __init__(self, builder, source_name, reproducer, binary_name,
-               sanitizer, target, require_user_data_dir):
+               sanitizer, target, require_user_data_dir, revision_url):
     if not sanitizer:
       raise error.SanitizerNotProvidedError()
     self.builder = builder
@@ -185,6 +187,7 @@ class Definition(object):
     self.sanitizer = sanitizer
     self.target = target
     self.require_user_data_dir = require_user_data_dir
+    self.revision_url = revision_url
 
 
 def store_auth_header(auth_header):

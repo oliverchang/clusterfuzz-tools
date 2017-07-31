@@ -57,9 +57,8 @@ presets: #Any parameters in a preset can be overridden in the actual definition
             preset: linux_content_shell
             sanitizer: ASAN
         android:
-            preset: linux_chromium
-            binary: apks/ChromePublic.apk
-            target: chrome_public_apk
+            builder: Clankium
+            source_name: clank
             reproducer: Android
 standalone:
         linux_asan_d8: { preset: linux_asan_d8_standalone }
@@ -104,5 +103,6 @@ chromium:
         linux_ubsan_vptr_chrome: { preset: linux_chromium, sanitizer: UBSAN }
         linux_ubsan_vptr_content_shell_drt: { preset: linux_content_shell, sanitizer: UBSAN }
         linux_ubsan_vptr_d8: { preset: linux_d8_chromium, sanitizer: UBSAN }
-        android_asan_chrome_latest: { preset: android, sanitizer: ASAN }
-
+        android_asan_chrome_latest: { preset: android, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/revisions/%s", binary: Chrome.apk, target: chrome_apk }
+        android_asan_chrome_x86: { preset: android, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/x86/revisions/%s", binary: Chrome.apk, target: chrome_apk }
+        android_asan_webview_shell: { preset: android, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/revisions/%s", binary: SystemWebViewGoogle.apk, target: system_webview_google_apk }

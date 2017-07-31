@@ -18,6 +18,7 @@ import json
 import logging
 import multiprocessing
 import os
+import re
 import shutil
 import stat
 import string
@@ -70,6 +71,24 @@ def get_pdfium_sha(chromium_sha):
   sha_line = sha_line.translate(None, string.punctuation).replace(
       'pdfiumrevision', '')
   return sha_line.strip()
+
+
+def get_clank_sha(revision_url):
+  """Get Clank SHA."""
+  tmp_file = tempfile.NamedTemporaryFile(delete=False)
+  tmp_file.close()
+
+  common.gsutil('cp %s %s' % (revision_url, tmp_file.name), cwd='.')
+
+  with open(tmp_file.name, 'r') as file_handle:
+    body = file_handle.read()
+  common.delete_if_exists(tmp_file.name)
+
+  match = re.search('"clank_revision": "([a-fA-F0-9]+)"', body)
+  if match:
+    return match.group(1)
+
+  raise Exception('Clank SHA is not found in:\n%s' % body)
 
 
 def sha_exists(sha, source_dir):
@@ -190,7 +209,8 @@ def find_file(target_filename, parent_dir):
         return os.path.join(root, filename)
 
   raise Exception(
-      'Cannot find the file name (%s) in %s.' % (target_filename, parent_dir))
+      'Cannot find file named %s in directory %s.' %
+      (target_filename, parent_dir))
 
 
 def download_build_if_needed(dest, url):
@@ -208,13 +228,13 @@ def download_build_if_needed(dest, url):
   filename = os.path.basename(gsutil_path)
   saved_file = os.path.join(common.CLUSTERFUZZ_CACHE_DIR, filename)
 
-  tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_CACHE_DIR)
+  tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_TMP_DIR)
   common.execute('unzip', '-q %s -d %s' % (saved_file, tmp_dir_path), cwd='.')
 
   # args.gn is guaranteed to be in the wanted folder. In Chrome, it's under a
   # sub-directory. In Android, it's in the top dir.
-  root_dir = find_file('args.gn', tmp_dir_path)
-  shutil.move(os.path.dirname(root_dir), dest)
+  args_gn_path = find_file('args.gn', tmp_dir_path)
+  shutil.move(os.path.dirname(args_gn_path), dest)
 
   logger.info('Cleaning up...')
   common.delete_if_exists(saved_file)
@@ -306,7 +326,7 @@ class BinaryProvider(object):
   @common.memoize
   def get_binary_path(self):
     """Return binary path and ensure it's executable."""
-    path = '%s/%s' % (self.get_build_dir_path(), self.get_binary_name())
+    path = os.path.join(self.get_build_dir_path(), self.get_binary_name())
     stats = os.stat(path)
     os.chmod(path, stats.st_mode | stat.S_IEXEC)
     return path
@@ -331,6 +351,13 @@ class DownloadedBinary(BinaryProvider):
         common.CLUSTERFUZZ_BUILDS_DIR, '%s_downloaded_build' % self.testcase.id)
     download_build_if_needed(path, self.testcase.build_url)
     return path
+
+  # Ensure the downloaded build uses the top dir. Because ClankiumBuilder
+  # overrides this method.
+  @common.memoize
+  def get_binary_path(self):
+    """Return the binary path."""
+    return BinaryProvider.get_binary_path(self)
 
   @common.memoize
   def get_source_dir_path(self):
@@ -364,6 +391,13 @@ class GenericBuilder(BinaryProvider):
   @common.memoize
   def get_source_dir_path(self):
     """Return the source dir path."""
+    return self.get_main_repo_path()
+
+  @common.memoize
+  def get_main_repo_path(self):
+    """Return the main repo path whose SHA is used by `gclient sync` as an
+      anchor. Clankium is one example where we build on chromium/src but
+      chromium/src/clank is the anchor."""
     return get_or_ask_for_source_location(self.definition.source_name)
 
   def get_git_sha(self):
@@ -447,7 +481,7 @@ class GenericBuilder(BinaryProvider):
     if not self.options.current:
       git_checkout(
           self.get_git_sha(), self.testcase.revision,
-          self.get_source_dir_path())
+          self.get_main_repo_path())
 
     self.setup_all_deps()
     self.gn_gen()
@@ -609,3 +643,22 @@ class V8Builder32Bit(V8Builder):
 # clusterfuzz.commandsreproduce.create_builder_class.
 class LibfuzzerMsanBuilder(MsanChromiumBuilder, LibfuzzerAndAflBuilder):
   """Build libfuzzer_chrome_msan."""
+
+
+class ClankiumBuilder(ChromiumBuilder):
+  """Build Clank."""
+
+  def get_git_sha(self):
+    """Return git sha."""
+    return get_clank_sha(self.definition.revision_url % self.testcase.revision)
+
+  @common.memoize
+  def get_source_dir_path(self):
+    """Return the source dir path for Clank. It's the clakium/src which is
+      the parent directory of clankium/src/clank (whose git sha is used as
+      the anchor for gclient sync)."""
+    return os.path.normpath(os.path.join(self.get_main_repo_path(), '..'))
+
+  def get_binary_path(self):
+    """Return the binary path."""
+    return '%s/apks/%s' % (self.get_build_dir_path(), self.get_binary_name())

@@ -349,13 +349,16 @@ class FilterLogTest(helpers.ExtendedTestCase):
     """Tests filtering."""
     self.assertEqual(
         ('--------- chromium (12882):\n'
+         'random line\n'
          '    #31 0x6a57caa3 '
          '(/data/app/org.chromium.chrome-2/lib/arm/libchrome.so+0x0ace0aa3)\n'
          '--------- DEBUG (372):\n'
          '    #21 0x0ace0211 '
-         '(/data/app/org.chromium.chrome-2/lib/arm/libchrome.so+0x0ace0211)\n'),
+         '(/data/app/org.chromium.chrome-2/lib/arm/libchrome.so+0x0ace0211)\n'
+         '    #21 pc 0ace0211  <unknown>\n'),
         android.filter_log(
-            'asfksljadf\n'
+            'invalid line\n'
+            'F/chromium(12882): random line\n'
             'F/chromium(12882): #31 0x6a57caa3 '
             '/data/app/org.chromium.chrome-2/lib/arm/libchrome.so+0x0ace0aa3\n'
             'F/DEBUG   (  372):     #21 pc 0ace0211  '

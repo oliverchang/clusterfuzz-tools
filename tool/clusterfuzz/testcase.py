@@ -155,6 +155,22 @@ def get_file_contents_for_android(environment_sections):
   return file_contents
 
 
+def get_package_and_main_class_names(stacktrace_lines):
+  """Get package and main class names."""
+  for line in stacktrace_lines:
+    content = line['content'].strip()
+    if not content.startswith('shell am start'):
+      continue
+
+    match = re.match(
+        r'shell am start -a [^\s]+ -n ([^/]+)/([^\s]+) .+', content)
+
+    if match:
+      return (match.group(1), match.group(2))
+
+  raise Exception('Cannot find the package and main class in the stacktrace.')
+
+
 def download_testcase_if_needed(url, dest_dir):
   """Download a file into the dest_dir with caching. dest_dir must be safe to
     be deleted."""
@@ -185,11 +201,15 @@ def create(testcase_json):
   reproduction_args = ''
   files = {}
   command_line_file_path = None
+  android_package_name = None
+  android_main_class_name = None
 
   if 'android' in testcase_json['testcase']['job_type']:
     environment_sections = get_environment_sections(stacktrace_lines)
     files = get_file_contents_for_android(environment_sections)
     command_line_file_path = get_command_line_file_path(environment_sections)
+    android_package_name, android_main_class_name = (
+        get_package_and_main_class_names(stacktrace_lines))
   else:
     envs, reproduction_args = get_environment_and_args(stacktrace_lines)
 
@@ -204,7 +224,7 @@ def create(testcase_json):
       stacktrace_lines=stacktrace_lines,
       environment=envs,
       reproduction_args=reproduction_args,
-      revision=testcase_json['crash_stacktrace']['revision'],
+      revision=testcase_json['crash_revision'],
       build_url=testcase_json['metadata']['build_url'],
       job_type=testcase_json['testcase']['job_type'],
       absolute_path=absolute_path,
@@ -215,7 +235,9 @@ def create(testcase_json):
       crash_state=testcase_json['crash_state'],
       raw_gn_args=testcase_json['metadata'].get('gn_args', '').strip(),
       files=files,
-      command_line_file_path=command_line_file_path)
+      command_line_file_path=command_line_file_path,
+      android_package_name=android_package_name,
+      android_main_class_name=android_main_class_name)
 
 
 def get_true_testcase_path(
@@ -242,7 +264,7 @@ class Testcase(object):
       self, testcase_id, stacktrace_lines, environment, reproduction_args,
       revision, build_url, job_type, absolute_path, file_extension,
       reproducible, gestures, crash_type, crash_state, raw_gn_args, files,
-      command_line_file_path):
+      command_line_file_path, android_package_name, android_main_class_name):
     self.id = testcase_id
     self.stacktrace_lines = stacktrace_lines
     self.environment = environment
@@ -259,6 +281,8 @@ class Testcase(object):
     self.raw_gn_args = raw_gn_args
     self.files = files
     self.command_line_file_path = command_line_file_path
+    self.android_package_name = android_package_name
+    self.android_main_class_name = android_main_class_name
 
     self.testcase_dir_path = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, str(self.id) + '_testcase')

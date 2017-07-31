@@ -84,7 +84,7 @@ def convert_android_crash_stack_line(line):
   # Ignore invalid frames, helps to prevent errors
   # while symbolizing.
   if '<unknown>' in frame_binary:
-    return
+    return None
 
   # Normalize frame address.
   if not frame_address.startswith('0x'):
@@ -146,9 +146,9 @@ def filter_log(content):
 
     result = (
         convert_android_crash_stack_line(content) or
-        convert_chrome_crash_stack_line(content))
-    if result:
-      filtered_output += result + '\n'
+        convert_chrome_crash_stack_line(content) or
+        content)
+    filtered_output += result + '\n'
 
   return filtered_output
 

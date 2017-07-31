@@ -1006,10 +1006,6 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
     with self.assertRaises(error.NoAndroidDeviceIdError):
       self.reproducer.get_device_id()
 
-  def test_get_package_name(self):
-    """Tests AndroidChromeReproducer.get_package_name."""
-    self.assertEqual('org.chromium.chrome', self.reproducer.get_package_name())
-
   def test_get_testcase_path(self):
     """Tests AndroidChromeReproducer.get_testcase_path."""
     self.reproducer.testcase_path = '/mnt/test.html'
@@ -1070,12 +1066,12 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.get_log',
         'clusterfuzz.android.kill',
         'clusterfuzz.android.reset',
-        'clusterfuzz.reproducers.AndroidChromeReproducer.get_package_name',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
         'time.sleep',
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
-    self.mock.get_package_name.return_value = 'package'
+    self.reproducer.testcase.android_package_name = 'android.package'
+    self.reproducer.testcase.android_main_class_name = 'android.Main'
     self.mock.get_testcase_path.return_value = 'testcase-path'
 
   def test_reproduce_crash(self):
@@ -1086,13 +1082,13 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
 
     self.assertEqual((0, 'filtered log'), self.reproducer.reproduce_crash())
 
-    self.mock.reset.assert_called_once_with('package')
+    self.mock.reset.assert_called_once_with('android.package')
     self.mock.ensure_active.assert_called_once_with()
     self.mock.clear_log.assert_called_once_with()
     self.mock.adb_shell.assert_called_once_with(
         'am start -a android.intent.action.MAIN -n '
-        "package/com.google.android.apps.chrome.Main 'testcase-path'")
+        "android.package/android.Main 'testcase-path'")
     self.mock.sleep.assert_called_once_with(30)
     self.mock.get_log.assert_called_once_with()
-    self.mock.kill.assert_called_once_with('package')
+    self.mock.kill.assert_called_once_with('android.package')
     self.mock.filter_log.assert_called_once_with('raw log')
