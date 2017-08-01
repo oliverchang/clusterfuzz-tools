@@ -37,6 +37,13 @@ TEST_TIMEOUT = 30
 USER_DATA_DIR_PATH = '/tmp/clusterfuzz-user-data-dir'
 USER_DATA_DIR_ARG = '--user-data-dir'
 ANDROID_SERIAL_ENV = 'ANDROID_SERIAL'
+SYSTEM_WEBVIEW_DIRS = [
+    '/system/app/webview',
+    '/system/app/WebViewGoogle',
+]
+SYSTEM_WEBVIEW_PACKAGE = 'com.google.android.webview'
+SYSTEM_WEBVIEW_VMSIZE_BYTES = 250 * 1000 * 1000
+SYSTEM_WEBVIEW_APK = 'SystemWebViewGoogle.apk'
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -198,7 +205,6 @@ class BaseReproducer(object):
     # TODO(tanin): remove these attributes. We shouldn't forward the
     # attributes.
     self.original_testcase_path = testcase.absolute_path
-    self.testcase_path = testcase.get_testcase_path()
     self.job_type = testcase.job_type
     self.environment = testcase.environment
     self.args = testcase.reproduction_args
@@ -267,7 +273,13 @@ class BaseReproducer(object):
   def get_testcase_path(self):
     """Get the testcase path. This allows subclasses to perform necessary
       operations to modify testcase path."""
-    return self.testcase_path
+    return self.testcase.get_testcase_path()
+
+  @common.memoize
+  def get_testcase_url(self):
+    """Get the testcase URL. In android, this is different from testcase
+      path."""
+    return 'file://%s' % self.get_testcase_path()
 
   @common.memoize
   def get_crash_signature(self):
@@ -299,11 +311,12 @@ class BaseReproducer(object):
     # Use %TESTCASE% argument if available. Otherwise append testcase path.
     # TODO(tanin): refactor the condition to its own module function.
     if '%TESTCASE%' in self.args:
-      self.args = self.args.replace('%TESTCASE%', self.testcase_path)
+      self.args = self.args.replace('%TESTCASE%', self.get_testcase_path())
     elif '%TESTCASE_FILE_URL%' in self.args:
-      self.args = self.args.replace('%TESTCASE_FILE_URL%', self.testcase_path)
+      self.args = self.args.replace(
+          '%TESTCASE_FILE_URL%', self.get_testcase_path())
     else:
-      self.args += ' %s' % self.testcase_path
+      self.args += ' %s' % self.get_testcase_path()
 
     self.binary_path, self.args, self.timeout = update_for_gdb_if_needed(
         self.binary_path, self.args, self.timeout, self.options.enable_debug)
@@ -505,14 +518,19 @@ class LinuxChromeJobReproducer(BaseReproducer):
       for gesture in self.gestures:
         self.execute_gesture(gesture, window, display_name)
 
+  @common.memoize
+  def get_testcase_path(self):
+    """Get testcase path."""
+    return update_testcase_path_in_layout_test(
+        self.testcase.get_testcase_path(),
+        self.original_testcase_path, self.source_directory)
+
   def pre_build_steps(self):
     """Steps to run before building."""
     # TODO(tanin): Move this to get_args.
     self.args = ensure_user_data_dir_if_needed(
         self.args, self.definition.require_user_data_dir)
     # TODO(tanin): Move this to get_testcase_path.
-    self.testcase_path = update_testcase_path_in_layout_test(
-        self.testcase_path, self.original_testcase_path, self.source_directory)
 
     self.environment.pop('ASAN_SYMBOLIZER_PATH', None)
     super(LinuxChromeJobReproducer, self).pre_build_steps()
@@ -588,18 +606,23 @@ class AndroidChromeReproducer(BaseReproducer):
   @common.memoize
   def get_testcase_path(self):
     """Get the testcase path."""
-    testcase_filename = os.path.basename(self.testcase_path)
-    android.adb('push %s /sdcard/' % self.testcase_path)
-    return 'file:///sdcard/%s' % testcase_filename
+    testcase_filename = os.path.basename(self.testcase.get_testcase_path())
+    android.adb('push %s /sdcard/' % self.testcase.get_testcase_path())
+    return '/sdcard/%s' % testcase_filename
+
+  def install(self):
+    """Instal chrome on Android."""
+    android.install(self.binary_path)
 
   def pre_build_steps(self):
     """Pre-build step."""
     # Ensure that the user sets ANDROID_SERIAL. Because adb uses it.
     device_id = self.get_device_id()
-    android.ensure_root()
+    android.ensure_root_and_remount()
     android.ensure_active()
     android.ensure_asan(
-        source_dir_path=self.binary_provider.get_source_dir_path(),
+        android_libclang_dir_path=(
+            self.binary_provider.get_android_libclang_dir_path()),
         device_id=device_id)
 
     super(AndroidChromeReproducer, self).pre_build_steps()
@@ -608,7 +631,7 @@ class AndroidChromeReproducer(BaseReproducer):
       android.write_content(path, content)
     android.write_content(
         self.testcase.command_line_file_path, 'chrome %s' % self.args)
-    android.adb('install -r %s' % self.binary_path)
+    self.install()
 
   def reproduce_crash(self):
     """Reproduce crash on Android."""
@@ -618,12 +641,30 @@ class AndroidChromeReproducer(BaseReproducer):
 
     ret_value, _ = android.adb_shell(
         'am start -a android.intent.action.MAIN '
-        "-n {package_name}/{class_name} '{testcase_path}'".format(
+        "-n {package_name}/{class_name} '{testcase_url}'".format(
             package_name=self.testcase.android_package_name,
             class_name=self.testcase.android_main_class_name,
-            testcase_path=self.get_testcase_path()))
+            testcase_url=self.get_testcase_url()),
+        redirect_stderr_to_stdout=True,
+        stdout_transformer=output_transformer.Identity())
     time.sleep(TEST_TIMEOUT)
 
     output = android.get_log()
     android.kill(self.testcase.android_package_name)
     return ret_value, android.filter_log(output)
+
+
+class AndroidWebViewReproducer(AndroidChromeReproducer):
+  """Reproduce an android webview job type."""
+
+  def install(self):
+    """Install webview."""
+    android.adb_shell(
+        'setprop persist.sys.webview.vmsize %s' % SYSTEM_WEBVIEW_VMSIZE_BYTES)
+    android.adb_shell('stop')
+    android.adb_shell('rm -rf %s' % ' '.join(SYSTEM_WEBVIEW_DIRS))
+    android.adb_shell('start')
+    android.adb('uninstall %s' % SYSTEM_WEBVIEW_PACKAGE)
+    android.install(os.path.join(
+        os.path.dirname(self.binary_path), SYSTEM_WEBVIEW_APK))
+    android.install(self.binary_path)

@@ -1,7 +1,6 @@
 """Methods for managing an android device."""
 
 import logging
-import os
 import re
 import tempfile
 import time
@@ -28,6 +27,16 @@ def adb_shell(command, **kwargs):
   return adb('shell "%s"' % escaped_command, **kwargs)
 
 
+def install(apk_path):
+  """Install an apk. We need this method to detect failure."""
+  returncode, output = adb(
+      'install -r %s' % apk_path, redirect_stderr_to_stdout=True)
+
+  if 'failure' in output.lower() or 'failed' in output.lower():
+    raise error.CommandFailedError('adb install -r %s' % apk_path, -1, output)
+  return returncode, output
+
+
 def write_content(path, content):
   """Write content to path on Android."""
   with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
@@ -43,7 +52,7 @@ def write_content(path, content):
   common.delete_if_exists(tmp_file.name)
 
 
-def ensure_asan(source_dir_path, device_id):
+def ensure_asan(android_libclang_dir_path, device_id):
   """Ensures ASan is installed on Android."""
   logger.info(
       'The testcase needs ASAN. After installing ASAN, the device might be '
@@ -54,11 +63,7 @@ def ensure_asan(source_dir_path, device_id):
 
   _, output = common.execute(
       common.get_resource(0755, 'resources', 'asan_device_setup.sh'),
-      '--lib %s --device %s' % (
-          os.path.join(
-              source_dir_path, 'third_party', 'llvm-build', 'Release+Asserts',
-              'lib', 'clang', '*', 'lib', 'linux'),
-          device_id),
+      '--lib %s --device %s' % (android_libclang_dir_path, device_id),
       env={'ADB_PATH': common.check_binary('adb', cwd='.')},
       redirect_stderr_to_stdout=True,
       cwd='.')
@@ -185,9 +190,10 @@ def set_content_setting(table, key, value):
       print_output=False)
 
 
-def ensure_root():
+def ensure_root_and_remount():
   """Ensure adb runs as root."""
   adb('root')
+  adb('remount')
 
 
 def reset(package_name):

@@ -33,6 +33,7 @@ def create_reproducer(klass):
   binary_provider.get_build_dir_path.return_value = '/fake/build_dir'
   testcase = mock.Mock(gestures=None, stacktrace_lines=[{'content': 'line'}],
                        job_type='job_type', reproduction_args='--original')
+  testcase.get_testcase_path.return_value = '/fake/testcase_dir/testcase'
   reproducer = klass(
       definition=mock.Mock(),
       binary_provider=binary_provider,
@@ -43,7 +44,6 @@ def create_reproducer(klass):
   reproducer.environment = {}
   reproducer.source_directory = '/fake/source_dir'
   reproducer.original_testcase_path = '/fake/original_testcase_dir/testcase'
-  reproducer.testcase_path = '/fake/testcase_dir/testcase'
   return reproducer
 
 class SetUpSymbolizersSuppressionsTest(helpers.ExtendedTestCase):
@@ -137,6 +137,7 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
         'clusterfuzz.common.UserStdin',
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.run_gestures',
+        'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_testcase_path',
         'clusterfuzz.reproducers.Xvfb.__enter__',
         'clusterfuzz.reproducers.Xvfb.__exit__',
         'clusterfuzz.common.get_resource',
@@ -149,6 +150,7 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     self.app_directory = '/chrome/source/folder'
     self.testcase_path = os.path.expanduser(
         os.path.join('~', '.clusterfuzz', '1234_testcase', 'testcase.js'))
+    self.mock.get_testcase_path.return_value = self.testcase_path
     self.definition = mock.Mock()
 
   def test_base(self):
@@ -270,8 +272,9 @@ class SetupArgsTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
+        'clusterfuzz.common.edit_if_needed',
+        'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_testcase_path',
         'clusterfuzz.reproducers.update_for_gdb_if_needed',
-        'clusterfuzz.common.edit_if_needed'
     ])
     self.testcase = mock.Mock(
         id=1234, reproduction_args='--repro',
@@ -280,7 +283,7 @@ class SetupArgsTest(helpers.ExtendedTestCase):
         job_type='job_type')
     self.testcase_path = os.path.expanduser(
         os.path.join('~', '.clusterfuzz', '1234_testcase', 'testcase.js'))
-    self.testcase.get_testcase_path.return_value = self.testcase_path
+    self.mock.get_testcase_path.return_value = self.testcase_path
     self.provider = mock.Mock(
         symbolizer_path='/chrome/source/folder/llvm-symbolizer')
     self.provider.get_binary_path.return_value = '/chrome/source/folder/d8'
@@ -340,25 +343,28 @@ class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
     self.mock.get_resource.return_value = 'llvm'
     self.mock.ensure_user_data_dir_if_needed.side_effect = (
         lambda args, require_user_data_dir: args + ' --test-user-data-dir')
-    self.mock.update_testcase_path_in_layout_test.return_value = '/new-path'
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.reproducer.definition.require_user_data_dir = False
     self.reproducer.original_testcase_path = '/fake/LayoutTests/testcase'
 
   def test_reproduce_crash(self):
     """Ensures pre-build steps run correctly."""
-
     self.reproducer.pre_build_steps()
-    self.assertEqual(self.reproducer.testcase_path, '/new-path')
     self.assert_exact_calls(
         self.mock.pre_build_steps, [mock.call(self.reproducer)])
     self.assertEqual(
         self.reproducer.args, '--always-opt --test-user-data-dir')
     self.mock.ensure_user_data_dir_if_needed.assert_called_once_with(
         '--always-opt', False)
+
+  def test_get_testcase_path(self):
+    """Tests get_testcase_path."""
+    self.mock.update_testcase_path_in_layout_test.return_value = 'new-path'
+    self.assertEqual('new-path', self.reproducer.get_testcase_path())
     self.mock.update_testcase_path_in_layout_test.assert_called_once_with(
-        '/fake/testcase_dir/testcase', '/fake/LayoutTests/testcase',
-        '/fake/source_dir')
+        self.reproducer.testcase.get_testcase_path(),
+        self.reproducer.original_testcase_path,
+        self.reproducer.source_directory)
 
 
 class XdotoolCommandTest(helpers.ExtendedTestCase):
@@ -961,6 +967,25 @@ class BaseReproducerGetCrashSignatureTest(helpers.ExtendedTestCase):
         self.reproducer.testcase.job_type, 'line')
 
 
+class BaseReproducerGetTestcaseUrlTest(helpers.ExtendedTestCase):
+  """Test BaseReproducer.get_testcase_url."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.reproducers.BaseReproducer.get_testcase_path',
+    ])
+
+  def test_get(self):
+    """Tests getting testcase URL."""
+    self.mock.get_testcase_path.return_value = '/sdcard/testcase.html'
+    self.reproducer = create_reproducer(reproducers.BaseReproducer)
+    self.assertEqual(
+        'file:///sdcard/testcase.html',
+        self.reproducer.get_testcase_url())
+
+    self.mock.get_testcase_path.assert_called_once_with(self.reproducer)
+
+
 class GetCrashSignatureTest(helpers.ExtendedTestCase):
   """Test get_crash_signature."""
 
@@ -1008,9 +1033,9 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
 
   def test_get_testcase_path(self):
     """Tests AndroidChromeReproducer.get_testcase_path."""
-    self.reproducer.testcase_path = '/mnt/test.html'
+    self.reproducer.testcase.get_testcase_path.return_value = '/mnt/test.html'
     self.assertEqual(
-        'file:///sdcard/test.html', self.reproducer.get_testcase_path())
+        '/sdcard/test.html', self.reproducer.get_testcase_path())
     self.mock.adb.assert_called_once_with(
         'push /mnt/test.html /sdcard/')
 
@@ -1023,7 +1048,8 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.adb',
         'clusterfuzz.android.ensure_active',
         'clusterfuzz.android.ensure_asan',
-        'clusterfuzz.android.ensure_root',
+        'clusterfuzz.android.ensure_root_and_remount',
+        'clusterfuzz.android.install',
         'clusterfuzz.android.write_content',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_device_id',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
@@ -1039,13 +1065,13 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
     """Tests AndroidChromeReproducer.pre_build_steps."""
     self.reproducer.pre_build_steps()
 
-    self.mock.ensure_root.assert_called_once_with()
+    self.mock.ensure_root_and_remount.assert_called_once_with()
     self.mock.ensure_active.assert_called_once_with()
     self.mock.ensure_asan(
-        source_dir_path=self.reproducer.binary_provider.get_source_dir_path(),
+        android_libclang_dir_path=(
+            self.reproducer.binary_provider.get_android_libclang_dir_path()),
         device_id='device')
-    self.mock.adb.assert_called_once_with(
-        'install -r %s' % self.reproducer.binary_path)
+    self.mock.install.assert_called_once_with(self.reproducer.binary_path)
     self.assert_exact_calls(self.mock.write_content, [
         mock.call('test-file', 'content'),
         mock.call(
@@ -1066,13 +1092,13 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.get_log',
         'clusterfuzz.android.kill',
         'clusterfuzz.android.reset',
-        'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
+        'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_url',
         'time.sleep',
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.reproducer.testcase.android_package_name = 'android.package'
     self.reproducer.testcase.android_main_class_name = 'android.Main'
-    self.mock.get_testcase_path.return_value = 'testcase-path'
+    self.mock.get_testcase_url.return_value = 'testcase-path'
 
   def test_reproduce_crash(self):
     """Tests AndroidChromeReproducer.reproduce_crash."""
@@ -1086,9 +1112,45 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
     self.mock.ensure_active.assert_called_once_with()
     self.mock.clear_log.assert_called_once_with()
     self.mock.adb_shell.assert_called_once_with(
-        'am start -a android.intent.action.MAIN -n '
-        "android.package/android.Main 'testcase-path'")
+        ('am start -a android.intent.action.MAIN -n '
+         "android.package/android.Main 'testcase-path'"),
+        redirect_stderr_to_stdout=True,
+        stdout_transformer=mock.ANY)
     self.mock.sleep.assert_called_once_with(30)
     self.mock.get_log.assert_called_once_with()
     self.mock.kill.assert_called_once_with('android.package')
     self.mock.filter_log.assert_called_once_with('raw log')
+
+
+class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
+  """Tests AndroidWebViewReproducer.install."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb',
+        'clusterfuzz.android.adb_shell',
+        'clusterfuzz.android.install'
+    ])
+
+  def test_install(self):
+    """Tests installing webview."""
+    self.reproducer = create_reproducer(reproducers.AndroidWebViewReproducer)
+    self.reproducer.install()
+
+    self.assert_exact_calls(self.mock.adb_shell, [
+        mock.call(
+            'setprop persist.sys.webview.vmsize %s' %
+            reproducers.SYSTEM_WEBVIEW_VMSIZE_BYTES),
+        mock.call('stop'),
+        mock.call('rm -rf %s' % ' '.join(reproducers.SYSTEM_WEBVIEW_DIRS)),
+        mock.call('start')
+    ])
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('uninstall %s' % reproducers.SYSTEM_WEBVIEW_PACKAGE)
+    ])
+    self.assert_exact_calls(self.mock.install, [
+        mock.call(os.path.join(
+            os.path.dirname(self.reproducer.binary_path),
+            reproducers.SYSTEM_WEBVIEW_APK)),
+        mock.call(self.reproducer.binary_path)
+    ])

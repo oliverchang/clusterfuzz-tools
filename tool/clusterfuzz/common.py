@@ -177,7 +177,7 @@ class Definition(object):
   """Holds all the necessary information to initialize a job's builder."""
 
   def __init__(self, builder, source_name, reproducer, binary_name,
-               sanitizer, target, require_user_data_dir, revision_url):
+               sanitizer, targets, require_user_data_dir, revision_url):
     if not sanitizer:
       raise error.SanitizerNotProvidedError()
     self.builder = builder
@@ -185,7 +185,7 @@ class Definition(object):
     self.reproducer = reproducer
     self.binary_name = binary_name
     self.sanitizer = sanitizer
-    self.target = target
+    self.targets = targets
     self.require_user_data_dir = require_user_data_dir
     self.revision_url = revision_url
 

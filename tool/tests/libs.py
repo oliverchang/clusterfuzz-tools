@@ -58,17 +58,19 @@ def make_definition(
     reproducer=reproducers.LinuxChromeJobReproducer,
     binary_name='chrome',
     sanitizer='ASAN',
-    target='chrome_builder_asan',
+    targets=None,
     require_user_data_dir=True,
     revision_url=None):
   """Make a definition."""
+  if targets is None:
+    targets = ['chromium_builder_asan']
   return common.Definition(
       builder=builder,
       source_name=source_name,
       reproducer=reproducer,
       binary_name=binary_name,
       sanitizer=sanitizer,
-      target=target,
+      targets=targets,
       require_user_data_dir=require_user_data_dir,
       revision_url=revision_url)
 

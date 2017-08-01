@@ -352,7 +352,7 @@ class DefinitionTest(helpers.ExtendedTestCase):
     with self.assertRaises(error.SanitizerNotProvidedError):
       common.Definition(
           builder='builder', source_name='chromium', reproducer='reproducer',
-          binary_name=None, sanitizer=None, target=None,
+          binary_name=None, sanitizer=None, targets=None,
           require_user_data_dir=False, revision_url=None)
 
 

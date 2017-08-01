@@ -115,6 +115,10 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
     binary_providers.download_build_if_needed(
         self.dest_path, self.build_url)
 
+    self.assert_exact_calls(self.mock.ensure_dir, [
+        mock.call(common.CLUSTERFUZZ_BUILDS_DIR),
+        mock.call(common.CLUSTERFUZZ_TMP_DIR)
+    ])
     self.mock.execute.assert_called_once_with(
         'unzip', '-q %s -d %s' % (
             os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'),
@@ -222,6 +226,17 @@ class DownloadedBinaryTest(helpers.ExtendedTestCase):
     self.mock.get_binary_path.return_value = 'binary'
     self.assertEqual('binary', self.provider.get_binary_path())
     self.mock.get_binary_path.assert_called_once_with(self.provider)
+
+  def test_get_android_libclang_dir_path(self):
+    """Tests get_binary_path."""
+    helpers.patch(self, [
+        'clusterfuzz.binary_providers.DownloadedBinary.get_build_dir_path'
+    ])
+    self.mock.get_build_dir_path.return_value = 'build/test'
+
+    self.assertEqual(
+        'build/test',
+        self.provider.get_android_libclang_dir_path())
 
 
 class GenericBuilderGetSourceDirPathTest(helpers.ExtendedTestCase):
@@ -428,12 +443,12 @@ class GenericBuilderGetTargetNameAndBinaryNameTest(helpers.ExtendedTestCase):
   def setUp(self):
     self.builder = binary_providers.GenericBuilder(
         libs.make_testcase(),
-        libs.make_definition(binary_name='binary', target='d8'),
+        libs.make_definition(binary_name='binary', targets=['d8']),
         libs.make_options())
 
   def test_get_target_name(self):
     """Test get_target_name."""
-    self.assertEqual('d8', self.builder.get_target_name())
+    self.assertEqual(['d8'], self.builder.get_target_names())
 
   def test_get_binary_name(self):
     """Test get_binary_name."""
@@ -456,7 +471,7 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
     ])
     self.builder = binary_providers.GenericBuilder(
-        libs.make_testcase(revision=213), libs.make_definition(target='d8'),
+        libs.make_testcase(revision=213), libs.make_definition(targets=['d8']),
         libs.make_options(current=False))
 
   def test_build(self):
@@ -1025,13 +1040,13 @@ class LibfuzzerAndAflBuilderTest(helpers.ExtendedTestCase):
         libs.make_options())
     self.mock.get_binary_name.return_value = 'target'
 
-  def test_get_target_name(self):
-    """Test get_target_name."""
-    self.assertEqual('target', self.builder.get_target_name())
+  def test_get_target_names(self):
+    """Test get_target_names."""
+    self.assertEqual(['target'], self.builder.get_target_names())
     self.mock.get_binary_name.assert_called_once_with('trace')
 
   def test_get_binary_name(self):
-    """Test get_target_name."""
+    """Test get_binary_name."""
     self.assertEqual('target', self.builder.get_binary_name())
     self.mock.get_binary_name.assert_called_once_with('trace')
 
@@ -1127,6 +1142,19 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
     self.mock.get_binary_name.return_value = 'test.apk'
 
     self.assertEqual('build-dir/apks/test.apk', self.builder.get_binary_path())
+
+  def test_get_android_libclang_dir_path(self):
+    """Tests get_android_libclang_dir_path."""
+    helpers.patch(self, [
+        'clusterfuzz.binary_providers.ClankiumBuilder.get_source_dir_path'
+    ])
+    self.mock.get_source_dir_path.return_value = 'source'
+
+    self.assertEqual(
+        os.path.join(
+            'source', 'third_party', 'llvm-build',
+            'Release+Asserts', 'lib', 'clang', '*', 'lib', 'linux'),
+        self.builder.get_android_libclang_dir_path())
 
 
 class GetClankShaTest(helpers.ExtendedTestCase):

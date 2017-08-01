@@ -99,14 +99,12 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
     """Tests no setup."""
     self.mock.execute.return_value = (
         0, 'blah\nThe device is up-to-date.\nblah')
-    android.ensure_asan('source', 'device')
+    android.ensure_asan('lib_path', 'device')
 
     self.mock.check_confirm.assert_called_once_with(mock.ANY)
     self.mock.execute.assert_called_once_with(
         'setup.sh',
-        ('--lib '
-         'source/third_party/llvm-build/Release+Asserts/lib/clang/*/lib/linux '
-         '--device device'),
+        ('--lib lib_path --device device'),
         env={'ADB_PATH': 'adb'},
         redirect_stderr_to_stdout=True,
         cwd='.')
@@ -119,14 +117,12 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
         0, 'blah\n%s\nblah' % android.ASAN_BEING_INSTALLED_SEARCH_STRING)
 
     with self.assertRaises(error.WaitForAndroidAfterInstallingAsanError):
-      android.ensure_asan('source', 'device')
+      android.ensure_asan('lib_path', 'device')
 
     self.mock.check_confirm.assert_called_once_with(mock.ANY)
     self.mock.execute.assert_called_once_with(
         'setup.sh',
-        ('--lib '
-         'source/third_party/llvm-build/Release+Asserts/lib/clang/*/lib/linux '
-         '--device device'),
+        ('--lib lib_path --device device'),
         env={'ADB_PATH': 'adb'},
         redirect_stderr_to_stdout=True,
         cwd='.')
@@ -177,7 +173,7 @@ class SetContentSettingTest(helpers.ExtendedTestCase):
         print_output=False)
 
 
-class EnsureRootTest(helpers.ExtendedTestCase):
+class EnsureRootAndRemountTest(helpers.ExtendedTestCase):
   """Tests ensure_root."""
 
   def setUp(self):
@@ -187,8 +183,10 @@ class EnsureRootTest(helpers.ExtendedTestCase):
 
   def test_ensure(self):
     """Tests ensure."""
-    android.ensure_root()
-    self.mock.adb.assert_called_once_with('root')
+    android.ensure_root_and_remount()
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('root'), mock.call('remount')
+    ])
 
 
 class ResetTest(helpers.ExtendedTestCase):
@@ -364,3 +362,34 @@ class FilterLogTest(helpers.ExtendedTestCase):
             'F/DEBUG   (  372):     #21 pc 0ace0211  '
             '/data/app/org.chromium.chrome-2/lib/arm/libchrome.so\n'
             'F/DEBUG   (  372):     #21 pc 0ace0211  <unknown>\n'))
+
+
+class InstallTest(helpers.ExtendedTestCase):
+  """Tests android.install."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.adb'])
+
+  def test_succeed(self):
+    """Tests installing successfully."""
+    self.mock.adb.return_value = (0, 'success')
+    self.assertEqual((0, 'success'), android.install('apk'))
+
+    self.mock.adb.assert_called_once_with(
+        'install -r apk', redirect_stderr_to_stdout=True)
+
+  def test_failure(self):
+    """Tests failure."""
+    self.mock.adb.return_value = (0, 'Failure')
+    with self.assertRaises(error.CommandFailedError):
+      android.install('apk')
+    self.mock.adb.assert_called_once_with(
+        'install -r apk', redirect_stderr_to_stdout=True)
+
+  def test_failed(self):
+    """Tests failure."""
+    self.mock.adb.return_value = (0, 'Failed')
+    with self.assertRaises(error.CommandFailedError):
+      android.install('apk')
+    self.mock.adb.assert_called_once_with(
+        'install -r apk', redirect_stderr_to_stdout=True)

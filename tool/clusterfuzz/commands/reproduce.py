@@ -158,7 +158,8 @@ def build_definition(job_definition, presets):
   reproducer_map = {'Base': reproducers.BaseReproducer,
                     'LibfuzzerJob': reproducers.LibfuzzerJobReproducer,
                     'LinuxChromeJob': reproducers.LinuxChromeJobReproducer,
-                    'Android': reproducers.AndroidChromeReproducer}
+                    'Android': reproducers.AndroidChromeReproducer,
+                    'AndroidWebView': reproducers.AndroidWebViewReproducer}
 
   result = parse_job_definition(job_definition, presets)
 
@@ -168,7 +169,7 @@ def build_definition(job_definition, presets):
       reproducer=reproducer_map[result['reproducer']],
       binary_name=result.get('binary'),
       sanitizer=result['sanitizer'],
-      target=result.get('target'),
+      targets=result.get('targets'),
       require_user_data_dir=result.get('require_user_data_dir', False),
       revision_url=result.get('revision_url', None))
 

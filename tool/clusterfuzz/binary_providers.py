@@ -220,6 +220,7 @@ def download_build_if_needed(dest, url):
 
   logger.info('Downloading build data...')
   common.ensure_dir(common.CLUSTERFUZZ_BUILDS_DIR)
+  common.ensure_dir(common.CLUSTERFUZZ_TMP_DIR)
 
   gsutil_path = url.replace(
       'https://storage.cloud.google.com/', 'gs://')
@@ -365,6 +366,10 @@ class DownloadedBinary(BinaryProvider):
     # Need asan_symbolizer.py from Chromium's source code.
     return get_or_ask_for_source_location('chromium')
 
+  def get_android_libclang_dir_path(self):
+    """Get the dir of libclang_rt.asan-*."""
+    return self.get_build_dir_path()
+
   def build(self):
     """Do nothing."""
 
@@ -384,9 +389,9 @@ class GenericBuilder(BinaryProvider):
     self.extra_gn_args = {}
 
   @common.memoize
-  def get_target_name(self):
-    """Get the target name."""
-    return self.definition.target
+  def get_target_names(self):
+    """Get the target names."""
+    return self.definition.targets
 
   @common.memoize
   def get_source_dir_path(self):
@@ -489,12 +494,12 @@ class GenericBuilder(BinaryProvider):
     common.execute(
         'ninja',
         ("-w 'dupbuild=err' -C {build_dir} -j {goma_cores} -l {goma_load} "
-         '{target}'.format(
+         '{targets}'.format(
              build_dir=self.get_build_dir_path(),
              goma_cores=compute_goma_cores(
                  self.options.goma_threads, self.options.disable_goma),
              goma_load=compute_goma_load(self.options.goma_load),
-             target=self.get_target_name())),
+             targets=' '.join(self.get_target_names()))),
         # Unset the memory tools' envs. See:
         # https://github.com/google/clusterfuzz-tools/issues/433
         self.get_source_dir_path(),
@@ -551,14 +556,14 @@ class LibfuzzerAndAflBuilder(ChromiumBuilder):
     from the stacktrace."""
 
   @common.memoize
-  def get_target_name(self):
+  def get_target_names(self):
     """Get the target name for libfuzzer or afl."""
-    return get_binary_name(self.testcase.stacktrace_lines)
+    return [get_binary_name(self.testcase.stacktrace_lines)]
 
   @common.memoize
   def get_binary_name(self):
     """Get the binary name."""
-    return self.get_target_name()
+    return self.get_target_names()[0]
 
 
 class V8Builder(GenericBuilder):
@@ -662,3 +667,9 @@ class ClankiumBuilder(ChromiumBuilder):
   def get_binary_path(self):
     """Return the binary path."""
     return '%s/apks/%s' % (self.get_build_dir_path(), self.get_binary_name())
+
+  def get_android_libclang_dir_path(self):
+    """Get the dir of libclang_rt.asan-*."""
+    return os.path.join(
+        self.get_source_dir_path(), 'third_party', 'llvm-build',
+        'Release+Asserts', 'lib', 'clang', '*', 'lib', 'linux')
