@@ -1,6 +1,7 @@
 """Methods for managing an android device."""
 
 import logging
+import os
 import re
 import tempfile
 import time
@@ -156,6 +157,49 @@ def filter_log(content):
     filtered_output += result + '\n'
 
   return filtered_output
+
+
+def fix_lib_path(content, search_paths, lib_tmp_dir_path):
+  """Fix lib path in stacktrace. lib_tmp_dir_path is for pulling the lib from
+    the device."""
+  lines = []
+  for line in content.splitlines():
+    match = re.match(r'\s*#([0-9]+)\s+([^\s]+)\s+\(([^+]+)\+([^)]+)\)', line)
+    if not match:
+      lines.append(line)
+      continue
+
+    frame_no = match.group(1)
+    frame_address = match.group(2)
+    binary_path = match.group(3)
+    binary_address = match.group(4)
+
+    binary_path = find_lib_path(binary_path, search_paths, lib_tmp_dir_path)
+    lines.append(
+        '    #%s %s (%s+%s)' %
+        (frame_no, frame_address, binary_path, binary_address))
+
+  return '\n'.join(lines)
+
+
+def find_lib_path(binary_path, search_paths, lib_tmp_dir_path):
+  """Find the filename in search paths (or pull from the device) and return
+    full path."""
+  filename = os.path.basename(binary_path)
+
+  for path in search_paths + [lib_tmp_dir_path]:
+    full_path = os.path.join(path, filename)
+    if os.path.exists(full_path):
+      return full_path
+
+  adb('pull %s %s' % (binary_path, lib_tmp_dir_path))
+
+  full_path = os.path.join(lib_tmp_dir_path, filename)
+  if not os.path.exists(full_path):
+    raise Exception(
+        "%s doesn't exist even after pulling from the device" % full_path)
+
+  return full_path
 
 
 def ensure_active():

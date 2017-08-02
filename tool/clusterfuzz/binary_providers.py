@@ -370,6 +370,10 @@ class DownloadedBinary(BinaryProvider):
     """Get the dir of libclang_rt.asan-*."""
     return self.get_build_dir_path()
 
+  def get_unstripped_lib_dir_path(self):
+    """Get the unstripped lib path for Android."""
+    return self.get_build_dir_path()
+
   def build(self):
     """Do nothing."""
 
@@ -466,7 +470,12 @@ class GenericBuilder(BinaryProvider):
   def gclient_sync(self):
     """Run gclient sync. This is separated from install_deps because it is
       needed in every build."""
-    common.execute('gclient', 'sync', self.get_source_dir_path())
+    common.execute(
+        'gclient', 'sync', self.get_source_dir_path(),
+        # gclient sync sometimes asks a yes/no question (e.g. installing
+        # Android SDK).
+        stdin=common.StringStdin('y\ny\ny\n'),
+    )
 
   def gclient_runhooks(self):
     """Run gclient runhooks. This is separated from install_deps because it is
@@ -670,6 +679,12 @@ class ClankiumBuilder(ChromiumBuilder):
 
   def get_android_libclang_dir_path(self):
     """Get the dir of libclang_rt.asan-*."""
-    return os.path.join(
+    parent_dir = os.path.join(
         self.get_source_dir_path(), 'third_party', 'llvm-build',
-        'Release+Asserts', 'lib', 'clang', '*', 'lib', 'linux')
+        'Release+Asserts', 'lib', 'clang')
+    version = os.listdir(parent_dir)[0]
+    return os.path.join(parent_dir, version, 'lib', 'linux')
+
+  def get_unstripped_lib_dir_path(self):
+    """Get the unstripped lib path for Android."""
+    return os.path.join(self.get_build_dir_path(), 'lib.unstripped')

@@ -140,13 +140,13 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_testcase_path',
         'clusterfuzz.reproducers.Xvfb.__enter__',
         'clusterfuzz.reproducers.Xvfb.__exit__',
+        'clusterfuzz.reproducers.symbolize',
         'clusterfuzz.common.get_resource',
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.post_run_symbolize',
     ])
     self.mock.get_resource.return_value = (
         '/chrome/source/folder/llvm-symbolizer')
     self.mock.wait_execute.return_value = (0, 'lines')
-    self.mock.post_run_symbolize.return_value = 'symbolized'
+    self.mock.symbolize.return_value = 'symbolized'
     self.app_directory = '/chrome/source/folder'
     self.testcase_path = os.path.expanduser(
         os.path.join('~', '.clusterfuzz', '1234_testcase', 'testcase.js'))
@@ -642,11 +642,11 @@ class ReproduceNormalTest(helpers.ExtendedTestCase):
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     helpers.patch(self, [
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.reproduce_crash',
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.post_run_symbolize',
+        'clusterfuzz.reproducers.symbolize',
         'clusterfuzz.reproducers.get_crash_signature',
         'time.sleep'])
     self.mock.reproduce_crash.return_value = (0, 'stuff')
-    self.mock.post_run_symbolize.return_value = 'stuff'
+    self.mock.symbolize.return_value = 'stuff'
     self.reproducer.get_crash_signature = lambda: common.CrashSignature(
         'original', ['state'])
     self.reproducer.job_type = 'linux_ubsan_chrome'
@@ -696,8 +696,8 @@ class ReproduceDebugTest(helpers.ExtendedTestCase):
     self.mock.reproduce_crash.assert_called_once_with(self.reproducer)
 
 
-class PostRunSymbolizeTest(helpers.ExtendedTestCase):
-  """Tests the post_run_symbolize method."""
+class SymbolizeTest(helpers.ExtendedTestCase):
+  """Tests the symbolize method."""
 
   def setUp(self):
     self.setup_fake_filesystem()
@@ -705,24 +705,20 @@ class PostRunSymbolizeTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.execute',
         'clusterfuzz.common.get_resource',
         'clusterfuzz.common.StringStdin',
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_crash_signature'
     ])
-    self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
-    self.reproducer.source_directory = '/path/to/chromium'
     self.mock.get_resource.return_value = 'asan_sym_proxy.py'
     self.mock.execute.return_value = (0, 'symbolized')
 
   def test_symbolize_no_output(self):
     """Test to ensure no symbolization is done with no output."""
-    output = ' '
-    result = self.reproducer.post_run_symbolize(output)
+    result = reproducers.symbolize('', 'source')
 
     self.assert_exact_calls(self.mock.execute, [])
     self.assertEqual(result, '')
 
   def test_symbolize_output(self):
     """Test to ensure the correct symbolization call are made."""
-    result = self.reproducer.post_run_symbolize('output_lines')
+    result = reproducers.symbolize('output_lines', '/path/to/chromium')
 
     self.mock.execute.assert_called_once_with(
         '/path/to/chromium/tools/valgrind/asan/asan_symbolize.py',
@@ -1089,24 +1085,30 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.clear_log',
         'clusterfuzz.android.ensure_active',
         'clusterfuzz.android.filter_log',
+        'clusterfuzz.android.fix_lib_path',
         'clusterfuzz.android.get_log',
         'clusterfuzz.android.kill',
         'clusterfuzz.android.reset',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_url',
+        'clusterfuzz.reproducers.symbolize',
         'time.sleep',
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.reproducer.testcase.android_package_name = 'android.package'
     self.reproducer.testcase.android_main_class_name = 'android.Main'
     self.mock.get_testcase_url.return_value = 'testcase-path'
+    self.setup_fake_filesystem()
+    os.makedirs(common.CLUSTERFUZZ_TMP_DIR)
 
   def test_reproduce_crash(self):
     """Tests AndroidChromeReproducer.reproduce_crash."""
     self.mock.adb_shell.return_value = (0, 'dontcare')
     self.mock.get_log.return_value = 'raw log'
     self.mock.filter_log.return_value = 'filtered log'
+    self.mock.fix_lib_path.return_value = 'fixed log'
+    self.mock.symbolize.return_value = 'symbolized'
 
-    self.assertEqual((0, 'filtered log'), self.reproducer.reproduce_crash())
+    self.assertEqual((0, 'symbolized'), self.reproducer.reproduce_crash())
 
     self.mock.reset.assert_called_once_with('android.package')
     self.mock.ensure_active.assert_called_once_with()
@@ -1120,6 +1122,15 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
     self.mock.get_log.assert_called_once_with()
     self.mock.kill.assert_called_once_with('android.package')
     self.mock.filter_log.assert_called_once_with('raw log')
+    self.mock.fix_lib_path.assert_called_once_with(
+        content='filtered log',
+        search_paths=[
+            self.reproducer.binary_provider.get_unstripped_lib_dir_path(),
+            self.reproducer.binary_provider.get_android_libclang_dir_path(),
+        ],
+        lib_tmp_dir_path=mock.ANY)
+    self.mock.symbolize.assert_called_once_with(
+        'fixed log', self.reproducer.binary_provider.get_source_dir_path())
 
 
 class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import mock
 
 from clusterfuzz import android
@@ -393,3 +394,70 @@ class InstallTest(helpers.ExtendedTestCase):
       android.install('apk')
     self.mock.adb.assert_called_once_with(
         'install -r apk', redirect_stderr_to_stdout=True)
+
+
+class FixLibPathTest(helpers.ExtendedTestCase):
+  """Tests fix_lib_path."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.find_lib_path'])
+
+  def test_fix(self):
+    """Tests fix."""
+    self.mock.find_lib_path.return_value = 'replaced'
+    content = (
+        'random line\n'
+        '    #15 0x1234 (/android/libchrome.so+0x4566)\n'
+        '    #16 0x777 (/android/libhwu.so+0x999)\n')
+    self.assertEqual(
+        ('random line\n'
+         '    #15 0x1234 (replaced+0x4566)\n'
+         '    #16 0x777 (replaced+0x999)'),
+        android.fix_lib_path(content, ['/search'], '/tmp'))
+    self.assert_exact_calls(self.mock.find_lib_path, [
+        mock.call('/android/libchrome.so', ['/search'], '/tmp'),
+        mock.call('/android/libhwu.so', ['/search'], '/tmp'),
+    ])
+
+
+class FindLibPathTest(helpers.ExtendedTestCase):
+  """Tests find_lib_path."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.adb'])
+    self.setup_fake_filesystem()
+
+    os.makedirs('/test/lib')
+    os.makedirs('/tmp/lib')
+
+  def test_find(self):
+    """Tests finding lib in search_paths."""
+    self.fs.CreateFile('/test/lib/libc.so')
+    self.fs.CreateFile('/tmp/lib/libchrome.so')
+    self.assertEqual(
+        '/test/lib/libc.so',
+        android.find_lib_path('/android/libc.so', ['/test/lib'], '/tmp/lib'))
+    self.assertEqual(
+        '/tmp/lib/libchrome.so',
+        android.find_lib_path(
+            '/android/libchrome.so', ['/test/lib'], '/tmp/lib'))
+    self.assertEqual(0, self.mock.adb.call_count)
+
+  def test_pull(self):
+    """Tests pulling from android."""
+    self.mock.adb.side_effect = (
+        lambda _: self.fs.CreateFile('/tmp/lib/libc.so', contents='test'))
+    self.assertEqual(
+        '/tmp/lib/libc.so',
+        android.find_lib_path('/android/libc.so', ['/test/lib'], '/tmp/lib'))
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('pull /android/libc.so /tmp/lib'),
+    ])
+
+  def test_pull_exception(self):
+    """Tests failing to pull."""
+    with self.assertRaises(Exception):
+      android.find_lib_path('/android/libc.so', ['/test/lib'], '/tmp/lib')
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('pull /android/libc.so /tmp/lib'),
+    ])

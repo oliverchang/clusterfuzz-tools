@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 
 import psutil
@@ -181,6 +182,32 @@ def get_crash_signature(job_type, raw_stacktrace):
       [x for x in response['crash_state'].split('\n') if x])
   crash_type = response['crash_type'].replace('\n', ' ')
   return common.CrashSignature(crash_type, crash_state_lines)
+
+
+def symbolize(output, source_dir_path):
+  """Symbolize a stacktrace."""
+  output = output.strip()
+  if not output:
+    # If no input, nothing to symbolize. Bail out, otherwise
+    # we hang inside symbolizer.
+    return ''
+
+  asan_symbolizer_location = os.path.join(
+      source_dir_path, os.path.join(
+          'tools', 'valgrind', 'asan', 'asan_symbolize.py'))
+  symbolizer_proxy_location = common.get_resource(
+      0755, 'asan_symbolize_proxy.py')
+
+  _, symbolized_out = common.execute(
+      asan_symbolizer_location, '', os.path.expanduser('~'),
+      env={'LLVM_SYMBOLIZER_PATH': symbolizer_proxy_location,
+           'CHROMIUM_SRC': source_dir_path},
+      capture_output=True, exit_on_error=True,
+      stdout_transformer=output_transformer.Identity(),
+      stdin=common.StringStdin(output + '\0'),
+      redirect_stderr_to_stdout=True)
+  logger.info(symbolized_out)
+  return symbolized_out
 
 
 class BaseReproducer(object):
@@ -536,31 +563,6 @@ class LinuxChromeJobReproducer(BaseReproducer):
     super(LinuxChromeJobReproducer, self).pre_build_steps()
 
 
-  def post_run_symbolize(self, output):
-    """Symbolizes non-libfuzzer chrome jobs."""
-    if not output.strip():
-      # If no input, nothing to symbolize. Bail out, otherwise
-      # we hang inside symbolizer.
-      return ''
-
-    asan_symbolizer_location = os.path.join(
-        self.source_directory, os.path.join('tools', 'valgrind', 'asan',
-                                            'asan_symbolize.py'))
-    symbolizer_proxy_location = common.get_resource(
-        0755, 'asan_symbolize_proxy.py')
-
-    _, symbolized_out = common.execute(
-        asan_symbolizer_location, '', os.path.expanduser('~'),
-        env={'LLVM_SYMBOLIZER_PATH': symbolizer_proxy_location,
-             'CHROMIUM_SRC': self.source_directory},
-        capture_output=True, exit_on_error=True,
-        stdout_transformer=output_transformer.Identity(),
-        stdin=common.StringStdin(output + '\0'),
-        redirect_stderr_to_stdout=True)
-    logger.info(symbolized_out)
-    return symbolized_out
-
-
   def reproduce_crash(self):
     """Reproduce the crash, running gestures if necessary."""
 
@@ -583,7 +585,7 @@ class LinuxChromeJobReproducer(BaseReproducer):
           process, exit_on_error=False, timeout=self.timeout,
           stdout_transformer=output_transformer.Identity(),
           read_buffer_length=1)
-      return err, self.post_run_symbolize(out)
+      return err, symbolize(out, self.source_directory)
 
 
 class AndroidChromeReproducer(BaseReproducer):
@@ -651,7 +653,20 @@ class AndroidChromeReproducer(BaseReproducer):
 
     output = android.get_log()
     android.kill(self.testcase.android_package_name)
-    return ret_value, android.filter_log(output)
+
+    lib_tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_TMP_DIR)
+    symbolized_output = symbolize(
+        output=android.fix_lib_path(
+            content=android.filter_log(output),
+            search_paths=[
+                self.binary_provider.get_unstripped_lib_dir_path(),
+                self.binary_provider.get_android_libclang_dir_path()
+            ],
+            lib_tmp_dir_path=lib_tmp_dir_path
+        ),
+        source_dir_path=self.binary_provider.get_source_dir_path())
+    common.delete_if_exists(lib_tmp_dir_path)
+    return ret_value, symbolized_output
 
 
 class AndroidWebViewReproducer(AndroidChromeReproducer):

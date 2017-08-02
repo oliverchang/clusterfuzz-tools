@@ -238,6 +238,16 @@ class DownloadedBinaryTest(helpers.ExtendedTestCase):
         'build/test',
         self.provider.get_android_libclang_dir_path())
 
+  def test_get_unstripped_lib_dir_path(self):
+    """Tests get_unstripped_lib_dir_path."""
+    helpers.patch(self, [
+        'clusterfuzz.binary_providers.DownloadedBinary.get_build_dir_path'
+    ])
+    self.mock.get_build_dir_path.return_value = 'build/test'
+
+    self.assertEqual(
+        'build/test', self.provider.get_unstripped_lib_dir_path())
+
 
 class GenericBuilderGetSourceDirPathTest(helpers.ExtendedTestCase):
   """Test GenericBuilder.get_source_dir_path."""
@@ -389,7 +399,8 @@ class GenericBuilderGclientSyncTest(helpers.ExtendedTestCase):
     """Test doing nothing"""
     self.mock.get_source_dir_path.return_value = '/src'
     self.builder.gclient_sync()
-    self.mock.execute.assert_called_once_with('gclient', 'sync', '/src')
+    self.mock.execute.assert_called_once_with(
+        'gclient', 'sync', '/src', stdin=mock.ANY)
 
 
 class GenericBuilderGclientRunhooksTest(helpers.ExtendedTestCase):
@@ -1143,17 +1154,27 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
 
     self.assertEqual('build-dir/apks/test.apk', self.builder.get_binary_path())
 
+  def test_unstripped_lib_dir_path(self):
+    """Tests get_unstripped_lib_dir_path."""
+    self.mock.get_build_dir_path.return_value = '/build'
+
+    self.assertEqual(
+        os.path.join('/build', 'lib.unstripped'),
+        self.builder.get_unstripped_lib_dir_path())
+
   def test_get_android_libclang_dir_path(self):
     """Tests get_android_libclang_dir_path."""
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.ClankiumBuilder.get_source_dir_path'
+        'clusterfuzz.binary_providers.ClankiumBuilder.get_source_dir_path',
+        'os.listdir'
     ])
     self.mock.get_source_dir_path.return_value = 'source'
+    self.mock.listdir.return_value = ['6.0.0']
 
     self.assertEqual(
         os.path.join(
             'source', 'third_party', 'llvm-build',
-            'Release+Asserts', 'lib', 'clang', '*', 'lib', 'linux'),
+            'Release+Asserts', 'lib', 'clang', '6.0.0', 'lib', 'linux'),
         self.builder.get_android_libclang_dir_path())
 
 
