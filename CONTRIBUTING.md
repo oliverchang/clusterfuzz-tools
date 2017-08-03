@@ -57,7 +57,7 @@ Create a CI image
 
 From the `ci` directory, perform the below steps:
 
-1. Modify `image.yml` and increment the version of `image_name` in `group_vars/all`.
+1. Increment the version of `image_name` in `group_vars/all`.
 2. Create and merge the pull request.
 3. Run `ansible-playbook image.yml` to create an image. This step might take an
    hour
