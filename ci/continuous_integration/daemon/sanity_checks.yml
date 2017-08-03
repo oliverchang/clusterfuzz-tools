@@ -6,9 +6,9 @@ testcase_ids:
   # libfuzzer_chrome_asan
   - 6158867007537152
   # linux_asan_chrome_media
-  - 5695524545232896
+  - 5830458616315904
   # linux_asan_chrome_mp
-  - 6061368416665600
+  - 5358389944385536
   # linux_asan_pdfium
   - 5088329306734592
   # linux_cfi_chrome
