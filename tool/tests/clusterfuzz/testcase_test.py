@@ -282,6 +282,8 @@ class DownloadTestcaseIfNeededTest(helpers.ExtendedTestCase):
     self.dir = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
     self.fake_dir = self.fs.CreateDirectory(self.dir)
+    self.fs.CreateFile(
+        os.path.join(self.dir, 'testcase.html'), contents='test')
 
   def test_using_cache(self):
     """Tests using cache."""

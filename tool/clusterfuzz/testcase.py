@@ -174,7 +174,7 @@ def get_package_and_main_class_names(stacktrace_lines):
 def download_testcase_if_needed(url, dest_dir):
   """Download a file into the dest_dir with caching. dest_dir must be safe to
     be deleted."""
-  if (os.path.exists(dest_dir) and
+  if (os.path.exists(dest_dir) and os.listdir(dest_dir) and
       (time.time() - os.stat(dest_dir).st_ctime) <= TESTCASE_CACHE_TTL):
     return
 

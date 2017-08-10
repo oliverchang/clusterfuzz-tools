@@ -128,7 +128,7 @@ class JobTypeNotSupportedError(ExpectedException):
       'If you believe that the crash will occur on Linux as well, please go '
       'to https://clusterfuzz.com/uploadusertestcase, upload the testcase, '
       'and choose a corresponding Linux job type. Ask us for help at '
-      'clusterfuzz-tools-users@[chromium.org,google.com].')
+      'clusterfuzz-dev@chromium.org.')
   EXIT_CODE = 47
 
   def __init__(self, job_type):
