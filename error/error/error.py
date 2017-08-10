@@ -4,8 +4,6 @@ import inspect
 import sys
 
 
-UNKNOWN_EXIT_CODE_ERROR = 'UnknownExitCodeError'
-
 UNREPRODUCIBLE_SUGGESTION_TEXT = (
     'Here are things you can try:\n'
     '- Run outside XVFB (e.g. you will be able to see the launched program '
@@ -20,18 +18,18 @@ UNREPRODUCIBLE_SUGGESTION_TEXT = (
 
 
 
-def get_class_name(exit_code):
+def get_class(exit_code):
   """Get class name given an exit code."""
   code_to_klass = {}
   for _, obj in inspect.getmembers(sys.modules[__name__]):
     if inspect.isclass(obj) and obj != ExpectedException:
       if obj.EXIT_CODE not in code_to_klass:
-        code_to_klass[obj.EXIT_CODE] = obj.__name__
+        code_to_klass[obj.EXIT_CODE] = obj
       else:
         raise Exception(
             '%s and %s have the same exit code.' % (
-                code_to_klass[obj.EXIT_CODE], obj.__name__))
-  return code_to_klass.get(exit_code, UNKNOWN_EXIT_CODE_ERROR)
+                code_to_klass[obj.EXIT_CODE].__name__, obj.__name__))
+  return code_to_klass.get(exit_code, UnknownExitCodeError)
 
 
 class ExpectedException(Exception):
@@ -41,6 +39,12 @@ class ExpectedException(Exception):
     super(ExpectedException, self).__init__(message)
     self.extras = extras
     self.exit_code = exit_code
+
+
+class UnknownExitCodeError(ExpectedException):
+  """Represents an unknown exit code error."""
+
+  EXIT_CODE = 256
 
 
 class MinimizationNotFinishedError(ExpectedException):

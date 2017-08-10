@@ -14,6 +14,7 @@ from lru import LRUCacheDict
 
 from daemon import stackdriver_logging
 from daemon import process
+from error import error
 
 
 HOME = os.path.expanduser('~')
@@ -28,6 +29,8 @@ SANITY_CHECKS = os.path.join(os.path.dirname(__file__), 'sanity_checks.yml')
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
 MAX_PREVIEW_LOG_BYTE_COUNT = 100000
+NINETY_DAYS_IN_SECONDS = 90 * 86400
+REPRODUCE_TOOL_TIMEOUT = 3 * 60 * 60
 
 # Every testcase (including the failed ones) will be run again after 2 days.
 PROCESSED_TESTCASE_IDS = LRUCacheDict(max_size=1000, expiration=172800)
@@ -39,8 +42,10 @@ TEST_OPTIONS = ['', '--current --skip-deps']
 # https://github.com/google/clusterfuzz-tools/issues/429
 CLEAN_CHROMIUM_SUBDIRS = ['testing', 'third_party', 'tools']
 
-# The number of seconds to sleep after each test run to avoid DDOS.
-SLEEP_TIME = 60
+# The number of seconds to sleep after each test run to avoid DDOS and git's
+# rate limit.
+SLEEP_TIME = 5 * 60
+MINIMIZATION_ERROR_SLEEP_TIME = 15 * 60
 
 Testcase = collections.namedtuple('Testcase', ['id', 'job_type'])
 
@@ -84,7 +89,8 @@ def run_testcase(testcase_id, opts):
           'GOMA_GCE_SERVICE_ACCOUNT': 'default',
           'PATH': '%s:%s' % (os.environ['PATH'], DEPOT_TOOLS)
       },
-      raise_on_error=False
+      raise_on_error=False,
+      timeout=REPRODUCE_TOOL_TIMEOUT
   )
 
   PROCESSED_TESTCASE_IDS[testcase_id] = True
@@ -144,6 +150,10 @@ def load_new_testcases():
       if testcase['jobType'] not in supported_jobtypes['chromium']:
         print 'Skip %s (%s) because its job type is not supported.' % (
             testcase['id'], testcase['jobType'])
+        continue
+
+      if (time.time() - int(testcase['timestamp'])) > NINETY_DAYS_IN_SECONDS:
+        print "Skip %s because it's too old." % testcase['id']
         continue
 
       if (testcase['id'] in PROCESSED_TESTCASE_IDS or
@@ -225,7 +235,7 @@ def clean():
   # Manually reset dirs.
   for path in CLEAN_CHROMIUM_SUBDIRS:
     process.call('rm -rf %s' % path, cwd=CHROMIUM_SRC)
-    process.call('git checkout HEAD %s -f' % path, cwd=CHROMIUM_SRC)
+    process.call('git checkout origin/master %s -f' % path, cwd=CHROMIUM_SRC)
 
   # --reset resets all uncommitted changes in the sub repo.
   process.call(
@@ -252,6 +262,19 @@ def reset_and_run_testcase(testcase_id, category, release):
 
     stackdriver_logging.send_run(
         testcase_id, category, version, release, return_code, logs, opts)
+    sleep(return_code)
+
+
+def sleep(return_code):
+  """Sleeps according to the return code."""
+  # A minimization error usually comes in batch (because of how ClusterFuzz
+  # works). That'd cause issue with running gclient sync too quickly to the
+  # point that it excceeds the git rate limit. Therefore, we add a longer
+  # sleep.
+  if error.get_class(return_code) == error.MinimizationNotFinishedError:
+    time.sleep(MINIMIZATION_ERROR_SLEEP_TIME)
+  else:
+    time.sleep(SLEEP_TIME)
 
 
 def main():
@@ -263,10 +286,8 @@ def main():
 
   for testcase_id in load_sanity_check_testcase_ids():
     reset_and_run_testcase(testcase_id, 'sanity', release)
-    time.sleep(SLEEP_TIME)
 
   while True:
     update_auth_header()
     for testcase in load_new_testcases():
       reset_and_run_testcase(testcase.id, testcase.job_type, release)
-      time.sleep(SLEEP_TIME)

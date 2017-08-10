@@ -43,7 +43,7 @@ def send_run(
     message = '%s (%s) reproduced %s successfully (%s%s).' % (
         version, release, testcase_id, testcase_type, opts_str)
   else:
-    error_name = error.get_class_name(return_code)
+    error_name = error.get_class(return_code).__name__
     message = (
         '%s (%s) failed to reproduce %s (%s, %s%s).' %
         (version, release, testcase_id, testcase_type, error_name, opts_str))

@@ -34,6 +34,7 @@ class CallTest(helpers.ExtendedTestCase):
         'daemon.process.store_last_pid',
         'os.setsid',
         'subprocess.Popen',
+        'threading.Thread'
     ])
 
     self.mock.Popen.return_value = self.popen
@@ -53,6 +54,10 @@ class CallTest(helpers.ExtendedTestCase):
     self.popen.communicate.assert_called_once_with()
     self.mock.store_last_pid.assert_called_once_with(123)
     self.assert_exact_calls(self.mock.kill_last_pid, [mock.call()] * 2)
+    self.mock.Thread.assert_called_once_with(
+        target=process.kill_when_timeout,
+        args=(self.popen, process.DEFAULT_TIMEOUT))
+    self.mock.Thread.return_value.start.assert_called_once_with()
 
   def test_not_capture(self):
     """Test not capture."""
@@ -68,6 +73,10 @@ class CallTest(helpers.ExtendedTestCase):
     self.popen.communicate.assert_called_once_with()
     self.mock.store_last_pid.assert_called_once_with(123)
     self.assert_exact_calls(self.mock.kill_last_pid, [mock.call()] * 2)
+    self.mock.Thread.assert_called_once_with(
+        target=process.kill_when_timeout,
+        args=(self.popen, process.DEFAULT_TIMEOUT))
+    self.mock.Thread.return_value.start.assert_called_once_with()
 
   def test_error(self):
     """Test raising exception if returncode is not zero."""
@@ -87,6 +96,10 @@ class CallTest(helpers.ExtendedTestCase):
     self.assertEqual(1, cm.exception.returncode)
     self.assertEqual('Test', cm.exception.output)
     self.assertEqual('test', cm.exception.cmd)
+    self.mock.Thread.assert_called_once_with(
+        target=process.kill_when_timeout,
+        args=(self.popen, process.DEFAULT_TIMEOUT))
+    self.mock.Thread.return_value.start.assert_called_once_with()
 
 
 class StoreLastPidTest(helpers.ExtendedTestCase):
@@ -125,3 +138,50 @@ class KillLastPidTest(helpers.ExtendedTestCase):
 
     self.assertFalse(os.path.exists(process.LAST_PID_FILE))
     self.assertEqual(0, self.mock.killpg.call_count)
+
+
+class KillWhenTimeoutTest(helpers.ExtendedTestCase):
+  """Tests kill_when_timeout."""
+
+  def setUp(self):
+    helpers.patch(self, ['time.time', 'time.sleep'])
+
+  def test_no_timeout(self):
+    """Tests no timeout."""
+    popen = mock.Mock()
+    popen.poll.side_effect = [None, None, 0, 0]
+    self.mock.time.return_value = 10
+
+    process.kill_when_timeout(popen, timeout=100)
+
+    self.assertEqual(0, popen.kill.call_count)
+    self.assertEqual(2, self.mock.sleep.call_count)
+    self.assertEqual(4, popen.poll.call_count)
+    self.assertEqual(3, self.mock.time.call_count)
+
+  def test_timeout(self):
+    """Tests timeout."""
+    popen = mock.Mock()
+    popen.poll.side_effect = [None, None, None, None]
+    self.mock.time.side_effect = [8, 10, 20, 1000]
+
+    process.kill_when_timeout(popen, timeout=100)
+
+    self.assertEqual(1, popen.kill.call_count)
+    self.assertEqual(2, self.mock.sleep.call_count)
+    self.assertEqual(4, popen.poll.call_count)
+    self.assertEqual(4, self.mock.time.call_count)
+
+  def test_error(self):
+    """Tests error when killing."""
+    popen = mock.Mock()
+    popen.kill.side_effect = OSError()
+    popen.poll.side_effect = [None, None, None, None]
+    self.mock.time.side_effect = [8, 10, 20, 1000]
+
+    process.kill_when_timeout(popen, timeout=100)
+
+    self.assertEqual(1, popen.kill.call_count)
+    self.assertEqual(2, self.mock.sleep.call_count)
+    self.assertEqual(4, popen.poll.call_count)
+    self.assertEqual(4, self.mock.time.call_count)

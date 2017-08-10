@@ -18,22 +18,22 @@ class AnotherFakeException(error.ExpectedException):
   EXIT_CODE = 100
 
 
-class GetClassNameTest(helpers.ExtendedTestCase):
-  """Test get_class_name."""
+class GetClassTest(helpers.ExtendedTestCase):
+  """Test get_class."""
 
   def test_get_by_code(self):
     """Get each class by exit code."""
     self.assertEqual(
-        error.MinimizationNotFinishedError.__name__,
-        error.get_class_name(error.MinimizationNotFinishedError.EXIT_CODE))
+        error.MinimizationNotFinishedError,
+        error.get_class(error.MinimizationNotFinishedError.EXIT_CODE))
     self.assertEqual(
-        error.UserRespondingNoError.__name__,
-        error.get_class_name(error.UserRespondingNoError.EXIT_CODE))
+        error.UserRespondingNoError,
+        error.get_class(error.UserRespondingNoError.EXIT_CODE))
 
   def test_get_unknown(self):
     """Get UnknownException."""
     self.assertEqual(
-        error.UNKNOWN_EXIT_CODE_ERROR, error.get_class_name(9999))
+        error.UnknownExitCodeError, error.get_class(9999))
 
   def test_same_exit_code(self):
     """Test some classes having the same exit code."""
@@ -43,7 +43,7 @@ class GetClassNameTest(helpers.ExtendedTestCase):
         (AnotherFakeException.__name__, AnotherFakeException)]
 
     with self.assertRaises(Exception) as cm:
-      error.get_class_name(500)
+      error.get_class(500)
 
     self.assertEqual(
         'FakeException and AnotherFakeException have the same exit code.',

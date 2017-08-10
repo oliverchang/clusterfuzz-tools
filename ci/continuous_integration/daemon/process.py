@@ -3,12 +3,16 @@
 import os
 import signal
 import subprocess
+import threading
+import time
 
 
 LAST_PID_FILE = '/python-daemon-data/last_pid'
+DEFAULT_TIMEOUT = 30 * 60  # 30 minutes.
 
 
-def call(cmd, cwd='.', env=None, capture=False, raise_on_error=True):
+def call(cmd, cwd='.', env=None, capture=False, raise_on_error=True,
+         timeout=DEFAULT_TIMEOUT):
   """Call invoke command with additional envs and return output."""
   env = env or {}
   env_str = ' '.join(
@@ -21,6 +25,7 @@ def call(cmd, cwd='.', env=None, capture=False, raise_on_error=True):
   with Popen(
       cmd, shell=True, cwd=cwd, env=final_env, preexec_fn=os.setsid,
       stdout=subprocess.PIPE if capture else None) as proc:
+    threading.Thread(target=kill_when_timeout, args=(proc, timeout)).start()
     out, _ = proc.communicate()
 
     if proc.returncode != 0 and raise_on_error:
@@ -28,6 +33,20 @@ def call(cmd, cwd='.', env=None, capture=False, raise_on_error=True):
           returncode=proc.returncode, cmd=cmd, output=out)
 
     return proc.returncode, out
+
+
+def kill_when_timeout(popen, timeout):
+  """Kill when the timeout is reached."""
+  start_time = time.time()
+
+  while popen.poll() is None and (time.time() - start_time) < timeout:
+    time.sleep(1)
+
+  if popen.poll() is None:
+    try:
+      popen.kill()
+    except OSError:
+      pass
 
 
 class Popen(object):

@@ -20,6 +20,7 @@ import yaml
 import mock
 
 from daemon import main
+from error import error
 from test_libs import helpers
 
 
@@ -33,7 +34,6 @@ class MainTest(helpers.ExtendedTestCase):
         'daemon.main.update_auth_header',
         'daemon.main.load_new_testcases',
         'daemon.main.prepare_binary_and_get_version',
-        'time.sleep'
     ])
     self.mock_os_environment({'RELEASE': 'release-test'})
     self.setup_fake_filesystem()
@@ -88,7 +88,8 @@ class RunTestcaseTest(helpers.ExtendedTestCase):
                 'CHROMIUM_SRC': main.CHROMIUM_SRC,
                 'PATH': 'test:%s' % main.DEPOT_TOOLS,
                 'GOMA_GCE_SERVICE_ACCOUNT': 'default'},
-            raise_on_error=False)
+            raise_on_error=False,
+            timeout=main.REPRODUCE_TOOL_TIMEOUT)
     ])
     self.assertIn(1234, main.PROCESSED_TESTCASE_IDS)
 
@@ -175,9 +176,12 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
     with open(main.AUTH_FILE_LOCATION, 'w') as f:
       f.write('Bearer xyzabc')
 
-    helpers.patch(self, ['daemon.main.get_supported_jobtypes',
-                         'daemon.main.post',
-                         'random.randint'])
+    helpers.patch(self, [
+        'daemon.main.get_supported_jobtypes',
+        'daemon.main.post',
+        'random.randint',
+        'time.time'
+    ])
     self.mock.randint.return_value = 6
     self.mock.get_supported_jobtypes.return_value = {'chromium': [
         'supported', 'support']}
@@ -185,15 +189,22 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
 
   def test_get_testcase(self):
     """Tests get testcase."""
+    self.mock.time.return_value = main.NINETY_DAYS_IN_SECONDS + 100
     resp = mock.Mock()
     resp.json.side_effect = (
         [{
             'items': [
-                {'jobType': 'supported', 'id': 12345},
-                {'jobType': 'unsupported', 'id': 98765},
-                {'jobType': 'support', 'id': 23456},
-                {'jobType': 'supported', 'id': 23456},
-                {'jobType': 'supported', 'id': 1337},
+                {'jobType': 'supported', 'id': 12345,
+                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
+                {'jobType': 'supported', 'id': 555, 'timestamp': 1},
+                {'jobType': 'unsupported', 'id': 98765,
+                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
+                {'jobType': 'support', 'id': 23456,
+                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
+                {'jobType': 'supported', 'id': 23456,
+                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
+                {'jobType': 'supported', 'id': 1337,
+                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
             ]
         }] * 15
         + [{'items': []}]
@@ -231,6 +242,7 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
         'daemon.main.prepare_binary_and_get_version',
         'daemon.main.read_logs',
         'daemon.main.clean',
+        'daemon.main.sleep',
     ])
     self.mock.prepare_binary_and_get_version.return_value = '0.2.2rc10'
     self.mock.run_testcase.return_value = 'run_testcase'
@@ -256,6 +268,29 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(
         self.mock.prepare_binary_and_get_version, [mock.call('master')])
     self.mock.clean.assert_called_once_with()
+    self.assert_exact_calls(self.mock.sleep, [
+        mock.call('run_testcase'), mock.call('run_testcase')])
+
+
+class SleepTest(helpers.ExtendedTestCase):
+  """Tests sleep."""
+
+  def setUp(self):
+    helpers.patch(self, ['time.sleep', 'error.error.get_class'])
+
+  def test_normal(self):
+    """Tests normal sleep."""
+    self.mock.get_class.return_value = error.UserRespondingNoError
+    main.sleep(error.UserRespondingNoError.EXIT_CODE)
+    self.mock.get_class.assert_called_once_with(
+        error.UserRespondingNoError.EXIT_CODE)
+
+  def test_minimization(self):
+    """Tests minimization."""
+    self.mock.get_class.return_value = error.MinimizationNotFinishedError
+    main.sleep(error.MinimizationNotFinishedError.EXIT_CODE)
+    self.mock.get_class.assert_called_once_with(
+        error.MinimizationNotFinishedError.EXIT_CODE)
 
 
 class BuildMasterAndGetVersionTest(helpers.ExtendedTestCase):
@@ -401,11 +436,13 @@ class CleanTest(helpers.ExtendedTestCase):
         mock.call('git reset --hard', cwd=main.CHROMIUM_SRC),
         mock.call('git checkout origin/master -f', cwd=main.CHROMIUM_SRC),
         mock.call('rm -rf testing', cwd=main.CHROMIUM_SRC),
-        mock.call('git checkout HEAD testing -f', cwd=main.CHROMIUM_SRC),
+        mock.call('git checkout origin/master testing -f',
+                  cwd=main.CHROMIUM_SRC),
         mock.call('rm -rf third_party', cwd=main.CHROMIUM_SRC),
-        mock.call('git checkout HEAD third_party -f', cwd=main.CHROMIUM_SRC),
+        mock.call('git checkout origin/master third_party -f',
+                  cwd=main.CHROMIUM_SRC),
         mock.call('rm -rf tools', cwd=main.CHROMIUM_SRC),
-        mock.call('git checkout HEAD tools -f', cwd=main.CHROMIUM_SRC),
+        mock.call('git checkout origin/master tools -f', cwd=main.CHROMIUM_SRC),
         mock.call(
             'gclient sync --reset', cwd=main.CHROMIUM_SRC,
             env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),

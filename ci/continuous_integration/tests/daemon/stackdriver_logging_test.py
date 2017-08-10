@@ -17,6 +17,7 @@ import json
 import mock
 
 from daemon import stackdriver_logging
+from error import error
 from test_libs import helpers
 
 
@@ -65,9 +66,9 @@ class SendRunTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'daemon.stackdriver_logging.send_log',
-        'error.error.get_class_name'
+        'error.error.get_class'
     ])
-    self.mock.get_class_name.return_value = 'FakeError'
+    self.mock.get_class.return_value = error.MinimizationNotFinishedError
 
   def _test(
       self, return_code, message, exception, success, expected_logs, logs,
@@ -102,7 +103,7 @@ class SendRunTest(helpers.ExtendedTestCase):
         expected_logs='',
         logs='logs',
         opts='--current --skip-deps')
-    self.assertEqual(0, self.mock.get_class_name.call_count)
+    self.assertEqual(0, self.mock.get_class.call_count)
 
   def test_fail(self):
     """Test send failure log."""
@@ -110,10 +111,10 @@ class SendRunTest(helpers.ExtendedTestCase):
         return_code=10,
         message=(
             '0.2.2rc3 (master) failed to reproduce 1234 '
-            '(sanity, FakeError, --current --skip-deps).'),
-        exception='FakeError',
+            '(sanity, MinimizationNotFinishedError, --current --skip-deps).'),
+        exception=error.MinimizationNotFinishedError.__name__,
         success=False,
         expected_logs='logs',
         logs='logs',
         opts='--current --skip-deps')
-    self.mock.get_class_name.assert_called_once_with(10)
+    self.mock.get_class.assert_called_once_with(10)
