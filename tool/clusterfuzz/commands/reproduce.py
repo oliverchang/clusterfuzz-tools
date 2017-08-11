@@ -17,6 +17,7 @@ Locally reproduces a testcase given a ClusterFuzz ID."""
 
 import os
 import json
+import time
 import urllib
 import webbrowser
 import logging
@@ -40,6 +41,8 @@ GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?%s' % (
                       'c7bn50f.apps.googleusercontent.com'),
         'response_type': 'code',
         'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob'}))
+RETRY_COUNT = 5
+SLEEP_TIME_WHEN_500 = 3
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -85,15 +88,20 @@ def send_request(url, data):
   return a valid, authorized response or throw an exception."""
   header = common.get_stored_auth_header() or get_verification_header()
   response = None
-  for _ in range(2):
+  for _ in range(RETRY_COUNT):
     response = common.post(
         url=url, headers={
             'Authorization': header,
             'User-Agent': 'clusterfuzz-tools'},
         allow_redirects=True, data=data)
 
-    if response.status_code == 401:  # The access token expired.
+    # The access token expired.
+    if response.status_code == 401:
       header = get_verification_header()
+    # Internal server error (e.g. due to deployment)
+    elif response.status_code == 500:
+      time.sleep(SLEEP_TIME_WHEN_500)
+      continue
     else:  # Other errors or success
       break
 
