@@ -29,7 +29,8 @@ SANITY_CHECKS = os.path.join(os.path.dirname(__file__), 'sanity_checks.yml')
 BINARY_LOCATION = '/python-daemon-data/clusterfuzz'
 TOOL_SOURCE = os.path.join(HOME, 'clusterfuzz-tools')
 MAX_PREVIEW_LOG_BYTE_COUNT = 100000
-NINETY_DAYS_IN_SECONDS = 90 * 86400
+MAX_AGE = 90 * 24 * 60 * 60  # 90 days.
+MIN_AGE = 12 * 60 * 60  # 12 hours.
 REPRODUCE_TOOL_TIMEOUT = 3 * 60 * 60
 
 # Every testcase (including the failed ones) will be run again after 2 days.
@@ -124,6 +125,16 @@ def get_supported_jobtypes():
   return result
 
 
+def is_time_valid(time_in_seconds):
+  """Check if the timestamp is valid for running on the CI."""
+  age = time.time() - time_in_seconds
+  return (
+      # The testcase is not too old.
+      age < MAX_AGE and
+      # Ensure the minimization task is finished.
+      age >= MIN_AGE)
+
+
 def load_new_testcases():
   """Returns a new list of testcases from clusterfuzz to run."""
 
@@ -152,7 +163,7 @@ def load_new_testcases():
             testcase['id'], testcase['jobType'])
         continue
 
-      if (time.time() - int(testcase['timestamp'])) > NINETY_DAYS_IN_SECONDS:
+      if not is_time_valid(int(testcase['timestamp'])):
         print "Skip %s because it's too old." % testcase['id']
         continue
 

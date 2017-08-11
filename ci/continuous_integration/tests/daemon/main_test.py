@@ -179,32 +179,28 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'daemon.main.get_supported_jobtypes',
         'daemon.main.post',
+        'daemon.main.is_time_valid',
         'random.randint',
         'time.time'
     ])
-    self.mock.randint.return_value = 6
-    self.mock.get_supported_jobtypes.return_value = {'chromium': [
-        'supported', 'support']}
     main.PROCESSED_TESTCASE_IDS.clear()
 
   def test_get_testcase(self):
     """Tests get testcase."""
-    self.mock.time.return_value = main.NINETY_DAYS_IN_SECONDS + 100
+    self.mock.is_time_valid.side_effect = lambda t: t != 2
+    self.mock.randint.return_value = 6
+    self.mock.get_supported_jobtypes.return_value = {'chromium': [
+        'supported0', 'supported1']}
     resp = mock.Mock()
     resp.json.side_effect = (
         [{
             'items': [
-                {'jobType': 'supported', 'id': 12345,
-                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
-                {'jobType': 'supported', 'id': 555, 'timestamp': 1},
-                {'jobType': 'unsupported', 'id': 98765,
-                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
-                {'jobType': 'support', 'id': 23456,
-                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
-                {'jobType': 'supported', 'id': 23456,
-                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
-                {'jobType': 'supported', 'id': 1337,
-                 'timestamp': main.NINETY_DAYS_IN_SECONDS},
+                {'jobType': 'supported0', 'id': 12345, 'timestamp': 1},
+                {'jobType': 'supported0', 'id': 555, 'timestamp': 2.2},
+                {'jobType': 'unsupported', 'id': 98765, 'timestamp': 3},
+                {'jobType': 'supported1', 'id': 23456, 'timestamp': 4},
+                {'jobType': 'supported0', 'id': 23456, 'timestamp': 5},
+                {'jobType': 'supported0', 'id': 1337, 'timestamp': 6},
             ]
         }] * 15
         + [{'items': []}]
@@ -215,7 +211,8 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
     result = main.load_new_testcases()
 
     self.assertEqual(
-        [main.Testcase(12345, 'supported'), main.Testcase(23456, 'support')],
+        [main.Testcase(12345, 'supported0'),
+         main.Testcase(23456, 'supported1')],
         result)
     self.assert_exact_calls(self.mock.post, [
         mock.call(
@@ -447,3 +444,25 @@ class CleanTest(helpers.ExtendedTestCase):
             'gclient sync --reset', cwd=main.CHROMIUM_SRC,
             env={'PATH': 'some_path:%s' % main.DEPOT_TOOLS}),
     ])
+
+
+class IsTimeValidTest(helpers.ExtendedTestCase):
+  """Tests is_time_valid."""
+
+  def setUp(self):
+    helpers.patch(self, ['time.time'])
+
+  def test_valid(self):
+    """Tests valid."""
+    self.mock.time.return_value = main.MAX_AGE + 100
+    self.assertTrue(main.is_time_valid(main.MAX_AGE - main.MIN_AGE))
+
+  def test_too_new(self):
+    """Tests too new."""
+    self.mock.time.return_value = main.MAX_AGE + 100
+    self.assertFalse(main.is_time_valid(main.MAX_AGE))
+
+  def test_too_old(self):
+    """Tests too old."""
+    self.mock.time.return_value = main.MAX_AGE + 100
+    self.assertFalse(main.is_time_valid(99))

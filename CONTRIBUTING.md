@@ -63,6 +63,10 @@ From the `ci` directory, perform the below steps:
    hour
 4. Re-deploy all CI instances.
 
+The image provides a pre-installed chromium's src. This improves the speed of
+CI deployment because a deployed CI instance can avoid cloning chromium's src;
+that could take an hour.
+
 
 Deploy CI
 ------------
@@ -77,10 +81,32 @@ From the `ci` directory, perform the below steps:
    (for example, `machine=release` corresponds to the boot disk
    `release-ci-boot` and the machine `release-ci`).
 
-The CI log is at `/var/log/python-daemon/current`. The reproduce tool's log is
-at `/home/clusterfuzz/.clusterfuzz/logs/output.log`.
+In general, we deploy 3 CI instances with canonical names:
 
-The CI should be deployed, at least, once every month because of goma update.
+1. Release:
+   `ansible-playbook playbook.yml -e release=release -e machine=release`.
+2. Release Candidate:
+   `ansible-playbook playbook.yml -e release=release-candidate -e machine=release-candidate`.
+3. Master:
+   `ansible-playbook playbook.yml -e release=master -e machine=master`.
+
+The list of deployed CI instances can be seen
+[here](https://pantheon.corp.google.com/compute/instances?project=clusterfuzz-tools).
+And their success/failure logs can be seen
+[here](https://pantheon.corp.google.com/logs/viewer?project=clusterfuzz-tools&organizationId=433637338589&minLogLevel=0&expandAll=false&resource=project&logName=projects%2Fclusterfuzz-tools%2Flogs%2Fci).
+
+
+### Here are important points
+
+* The CI log is at `/var/log/python-daemon/current`. The reproduce tool's log is
+  at `/home/clusterfuzz/.clusterfuzz/logs/output.log`.
+* The CI should be deployed, at least, once every month because of goma update.
+* [Runit](http://smarden.org/runit/) is used as the process supervision. Its
+supervised services live under `/etc/sv`.
+* Our CI config for Runit lives under `/etc/sv/python-daemon`.
+* Our CI binary lives under `/python-daemon`.
+* Our CI's data (e.g. env variables, reproduce binary) lives in
+  `/python-daemon-data`.
 
 
 Publish
