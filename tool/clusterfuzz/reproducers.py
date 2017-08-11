@@ -159,7 +159,7 @@ def update_testcase_path_in_layout_test(
   new_testcase_path = os.path.join(
       source_directory, 'third_party', 'WebKit', 'LayoutTests',
       original_testcase_path[search_index + len(search_string):])
-  shutil.move(testcase_path, new_testcase_path)
+  shutil.copy(testcase_path, new_testcase_path)
   return new_testcase_path
 
 

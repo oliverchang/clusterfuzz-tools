@@ -235,7 +235,7 @@ def download_build_if_needed(dest, url):
   # args.gn is guaranteed to be in the wanted folder. In Chrome, it's under a
   # sub-directory. In Android, it's in the top dir.
   args_gn_path = find_file('args.gn', tmp_dir_path)
-  shutil.move(os.path.dirname(args_gn_path), dest)
+  shutil.copy(os.path.dirname(args_gn_path), dest)
 
   logger.info('Cleaning up...')
   common.delete_if_exists(saved_file)

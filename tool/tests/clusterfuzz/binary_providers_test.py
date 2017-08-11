@@ -92,7 +92,7 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.gsutil',
         'clusterfuzz.binary_providers.find_file',
         'tempfile.mkdtemp',
-        'shutil.move',
+        'shutil.copy',
         'os.path.exists'
     ])
 
@@ -129,7 +129,7 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
         mock.call(os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip')),
         mock.call(self.mock.mkdtemp.return_value),
     ])
-    self.mock.move.assert_called_once_with(
+    self.mock.copy.assert_called_once_with(
         '/tmp/random/sub', self.dest_path)
     self.mock.gsutil.assert_called_once_with(
         'cp gs://test/test2/abc.zip .', common.CLUSTERFUZZ_CACHE_DIR)
