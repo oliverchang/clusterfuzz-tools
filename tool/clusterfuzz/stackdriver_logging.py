@@ -61,10 +61,17 @@ def send_log(params, stacktrace=None):
               'unsuccessfully finished')
   else:
     prefix = 'started'
-  params['message'] = (
-      '%s %s (%s, %s, %s).' % (
-          params['user'], prefix, params['command'],
-          params['testcase_id'], params['current']))
+
+  props = [str(params['testcase_id'])]
+
+  if params['current']:
+    props.append('current')
+
+  if params['enable_debug']:
+    props.append('debug')
+
+  params['message'] = '%s %s (%s, %s).' % (
+      params['user'], prefix, params['command'], ', '.join(props))
   if stacktrace:
     params['message'] += '\n%s' % stacktrace
 

@@ -43,13 +43,14 @@ class TestSendLog(helpers.ExtendedTestCase):
               'command': 'reproduce',
               'build': 'chromium',
               'current': True,
-              'disable_goma': True}
+              'disable_goma': True,
+              'enable_debug': True}
     stackdriver_logging.send_log(params, 'Stacktrace')
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
     params['message'] = (
-        'name successfully finished (reproduce, 123456, True).\n'
+        'name successfully finished (reproduce, 123456, current, debug).\n'
         'Stacktrace')
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
@@ -74,13 +75,15 @@ class TestSendLog(helpers.ExtendedTestCase):
               'success': True,
               'command': 'reproduce',
               'build': 'chromium',
-              'current': True,
-              'disable_goma': True}
+              'current': False,
+              'disable_goma': True,
+              'enable_debug': True}
     stackdriver_logging.send_log(params)
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
-    params['message'] = 'name successfully finished (reproduce, 123456, True).'
+    params['message'] = (
+        'name successfully finished (reproduce, 123456, debug).')
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
         'resource': {
@@ -105,12 +108,13 @@ class TestSendLog(helpers.ExtendedTestCase):
               'command': 'reproduce',
               'build': 'chromium',
               'current': True,
-              'disable_goma': True}
+              'disable_goma': True,
+              'enable_debug': False}
     stackdriver_logging.send_log(params)
 
     params['user'] = 'name'
     params['sessionId'] = 'user:1234:sessionid'
-    params['message'] = 'name started (reproduce, 123456, True).'
+    params['message'] = 'name started (reproduce, 123456, current).'
     structure = {
         'logName': 'projects/clusterfuzz-tools/logs/client',
         'resource': {
