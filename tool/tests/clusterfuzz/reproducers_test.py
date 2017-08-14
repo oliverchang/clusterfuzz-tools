@@ -364,7 +364,8 @@ class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
     self.mock.update_testcase_path_in_layout_test.assert_called_once_with(
         self.reproducer.testcase.get_testcase_path(),
         self.reproducer.original_testcase_path,
-        self.reproducer.source_directory)
+        self.reproducer.source_directory,
+        self.reproducer.testcase.created_at)
 
 
 class XdotoolCommandTest(helpers.ExtendedTestCase):
@@ -911,7 +912,15 @@ class UpdateTestcasePathInLayoutTestTest(helpers.ExtendedTestCase):
     self.assertEqual(
         '/testpath/testcase',
         reproducers.update_testcase_path_in_layout_test(
-            '/testpath/testcase', '/original/testcase', '/source'))
+            '/testpath/testcase', '/original/testcase', '/source', 100))
+    self.assertEqual(
+        '/testcase_dir/testcase',
+        reproducers.update_testcase_path_in_layout_test(
+            '/testcase_dir/testcase',
+            '/original/LayoutTests/original_dir/original_file',
+            '/source/',
+            reproducers.LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS + 100)
+    )
 
   def test_update(self):
     """Update the testcase path."""
@@ -922,7 +931,10 @@ class UpdateTestcasePathInLayoutTestTest(helpers.ExtendedTestCase):
         reproducers.update_testcase_path_in_layout_test(
             '/testcase_dir/testcase',
             '/original/LayoutTests/original_dir/original_file',
-            '/source/'))
+            '/source/',
+            100
+        )
+    )
     with open(new_path) as f:
       self.assertEqual('Some test', f.read())
 

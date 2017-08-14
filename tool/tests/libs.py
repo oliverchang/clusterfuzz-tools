@@ -27,7 +27,8 @@ def make_testcase(
     files=None,
     command_line_file_path=None,
     android_package_name=None,
-    android_main_class_name=None):
+    android_main_class_name=None,
+    created_at=100):
   """Make a testcase."""
   if files is None:
     files = {'test.conf': 'test-conf-content'}
@@ -49,7 +50,8 @@ def make_testcase(
       files=files,
       command_line_file_path=command_line_file_path,
       android_package_name=android_package_name,
-      android_main_class_name=android_main_class_name)
+      android_main_class_name=android_main_class_name,
+      created_at=created_at)
 
 
 def make_definition(

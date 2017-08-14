@@ -46,6 +46,10 @@ SYSTEM_WEBVIEW_PACKAGE = 'com.google.android.webview'
 SYSTEM_WEBVIEW_VMSIZE_BYTES = 250 * 1000 * 1000
 SYSTEM_WEBVIEW_APK = 'SystemWebViewGoogle.apk'
 
+# A testcase created after 6 Aug 2017 doesn't need the layout test hack.
+LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS = time.mktime(
+    (2017, 8, 11, 0, 0, 0, 0, 0, 0))
+
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -147,11 +151,14 @@ def ensure_user_data_dir_if_needed(args, require_user_data_dir):
   return '%s %s=%s' % (args, USER_DATA_DIR_ARG, USER_DATA_DIR_PATH)
 
 
+# TODO(#463): Remove on 11 Nov 2017.
 def update_testcase_path_in_layout_test(
-    testcase_path, original_testcase_path, source_directory):
+    testcase_path, original_testcase_path, source_directory,
+    testcase_created_at):
   """Update the testcase path if it's a layout test."""
   search_string = '%sLayoutTests%s' % (os.sep, os.sep)
-  if search_string not in original_testcase_path:
+  if (testcase_created_at >= LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS or
+      search_string not in original_testcase_path):
     return testcase_path
 
   # Move testcase to LayoutTests directory if needed.
@@ -550,7 +557,8 @@ class LinuxChromeJobReproducer(BaseReproducer):
     """Get testcase path."""
     return update_testcase_path_in_layout_test(
         self.testcase.get_testcase_path(),
-        self.original_testcase_path, self.source_directory)
+        self.original_testcase_path, self.source_directory,
+        self.testcase.created_at)
 
   def pre_build_steps(self):
     """Steps to run before building."""

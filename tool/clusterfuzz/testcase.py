@@ -237,7 +237,8 @@ def create(testcase_json):
       files=files,
       command_line_file_path=command_line_file_path,
       android_package_name=android_package_name,
-      android_main_class_name=android_main_class_name)
+      android_main_class_name=android_main_class_name,
+      created_at=testcase_json['timestamp'])
 
 
 def get_true_testcase_path(
@@ -264,7 +265,8 @@ class Testcase(object):
       self, testcase_id, stacktrace_lines, environment, reproduction_args,
       revision, build_url, job_type, absolute_path, file_extension,
       reproducible, gestures, crash_type, crash_state, raw_gn_args, files,
-      command_line_file_path, android_package_name, android_main_class_name):
+      command_line_file_path, android_package_name, android_main_class_name,
+      created_at):
     self.id = testcase_id
     self.stacktrace_lines = stacktrace_lines
     self.environment = environment
@@ -283,6 +285,7 @@ class Testcase(object):
     self.command_line_file_path = command_line_file_path
     self.android_package_name = android_package_name
     self.android_main_class_name = android_main_class_name
+    self.created_at = created_at
 
     self.testcase_dir_path = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, str(self.id) + '_testcase')
