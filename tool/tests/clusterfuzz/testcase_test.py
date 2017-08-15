@@ -268,8 +268,8 @@ class GetCommandLineFilePathTest(helpers.ExtendedTestCase):
       testcase.get_command_line_file_path(sections)
 
 
-class DownloadTestcaseIfNeededTest(helpers.ExtendedTestCase):
-  """Test download_testcase_if_needed."""
+class DownloadTestcaseTest(helpers.ExtendedTestCase):
+  """Test download_testcase."""
 
   def setUp(self):
     self.setup_fake_filesystem()
@@ -286,21 +286,12 @@ class DownloadTestcaseIfNeededTest(helpers.ExtendedTestCase):
     self.fs.CreateFile(
         os.path.join(self.dir, 'testcase.html'), contents='test')
 
-  def test_using_cache(self):
-    """Tests using cache."""
-    self.fake_dir.SetCTime(11)
-    self.mock.time.return_value = testcase.TESTCASE_CACHE_TTL + 10
-
-    testcase.download_testcase_if_needed('url', self.dir)
-
-    self.assertEqual(0, self.mock.execute.call_count)
-
   def test_downloading_testcase(self):
     """Tests the creation of folders & downloading of the testcase"""
     self.fake_dir.SetCTime(9)
     self.mock.time.return_value = testcase.TESTCASE_CACHE_TTL + 10
 
-    testcase.download_testcase_if_needed('url', self.dir)
+    testcase.download_testcase('url', self.dir)
 
     self.mock.get_stored_auth_header.assert_called_once_with()
     self.mock.execute.assert_called_once_with(
@@ -321,7 +312,7 @@ class GetTestcasePathTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'os.listdir',
         'clusterfuzz.testcase.get_true_testcase_path',
-        'clusterfuzz.testcase.download_testcase_if_needed'
+        'clusterfuzz.testcase.download_testcase'
     ])
     self.test = build_base_testcase()
     self.testcase_dir = os.path.join(
@@ -333,7 +324,7 @@ class GetTestcasePathTest(helpers.ExtendedTestCase):
     self.mock.get_true_testcase_path.return_value = 'true_path'
     self.assertEqual('true_path', self.test.get_testcase_path())
 
-    self.mock.download_testcase_if_needed.assert_called_once_with(
+    self.mock.download_testcase.assert_called_once_with(
         testcase.CLUSTERFUZZ_TESTCASE_URL % str(12345), self.testcase_dir)
 
 

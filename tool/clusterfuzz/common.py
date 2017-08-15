@@ -339,7 +339,8 @@ def start_execute(
   # See https://github.com/google/clusterfuzz-tools/issues/199 why we need this.
   sanitized_env = {}
   for k, v in env.iteritems():
-    sanitized_env[str(k)] = str(v) if v is not None else ''
+    if v is not None:
+      sanitized_env[str(k)] = str(v)
 
   env_str = ' '.join(
       ['%s="%s"' % (k, v) for k, v in sanitized_env.iteritems()])

@@ -16,7 +16,6 @@
 import logging
 import os
 import re
-import time
 import zipfile
 
 from clusterfuzz import common
@@ -171,13 +170,8 @@ def get_package_and_main_class_names(stacktrace_lines):
   raise Exception('Cannot find the package and main class in the stacktrace.')
 
 
-def download_testcase_if_needed(url, dest_dir):
-  """Download a file into the dest_dir with caching. dest_dir must be safe to
-    be deleted."""
-  if (os.path.exists(dest_dir) and os.listdir(dest_dir) and
-      (time.time() - os.stat(dest_dir).st_ctime) <= TESTCASE_CACHE_TTL):
-    return
-
+def download_testcase(url, dest_dir):
+  """Download the testcase into dest_dir."""
   common.delete_if_exists(dest_dir)
   os.makedirs(dest_dir)
 
@@ -293,7 +287,7 @@ class Testcase(object):
   @common.memoize
   def get_testcase_path(self):
     """Downloads & returns the location of the testcase file."""
-    download_testcase_if_needed(
+    download_testcase(
         CLUSTERFUZZ_TESTCASE_URL % self.id, self.testcase_dir_path)
 
     downloaded_filename = os.listdir(self.testcase_dir_path)[0]
