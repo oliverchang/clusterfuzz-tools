@@ -254,24 +254,6 @@ class GenericBuilderGetSourceDirPathTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.GenericBuilder.get_main_repo_path'
-    ])
-    self.builder = binary_providers.GenericBuilder(
-        libs.make_testcase(), libs.make_definition(source_name='something'),
-        libs.make_options())
-
-  def test_get_from_user(self):
-    """Test get the source location from user."""
-    self.mock.get_main_repo_path.return_value = '/path'
-    self.assertEqual('/path', self.builder.get_source_dir_path())
-    self.mock.get_main_repo_path.assert_called_once_with(self.builder)
-
-
-class GenericBuilderGetMainRepoPathTest(helpers.ExtendedTestCase):
-  """Test GenericBuilder.get_main_repo_path."""
-
-  def setUp(self):
-    helpers.patch(self, [
         'clusterfuzz.binary_providers.get_or_ask_for_source_location'
     ])
     self.builder = binary_providers.GenericBuilder(
@@ -284,6 +266,24 @@ class GenericBuilderGetMainRepoPathTest(helpers.ExtendedTestCase):
     self.assertEqual('/path', self.builder.get_source_dir_path())
     self.mock.get_or_ask_for_source_location.assert_called_once_with(
         'something')
+
+
+class GenericBuilderGetMainRepoPathTest(helpers.ExtendedTestCase):
+  """Test GenericBuilder.get_main_repo_path."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path'
+    ])
+    self.builder = binary_providers.GenericBuilder(
+        libs.make_testcase(), libs.make_definition(source_name='something'),
+        libs.make_options())
+
+  def test_get_from_user(self):
+    """Test get the source location from user."""
+    self.mock.get_source_dir_path.return_value = '/path'
+    self.assertEqual('/path', self.builder.get_main_repo_path())
+    self.mock.get_source_dir_path.assert_called_once_with(self.builder)
 
 
 class GenericBuilderGetBuildDirPathTest(helpers.ExtendedTestCase):
@@ -475,7 +475,7 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.GenericBuilder.gn_gen',
         'clusterfuzz.binary_providers.GenericBuilder.get_git_sha',
         'clusterfuzz.binary_providers.GenericBuilder.get_build_dir_path',
-        'clusterfuzz.binary_providers.GenericBuilder.get_main_repo_path',
+        'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.compute_goma_cores',
         'clusterfuzz.binary_providers.compute_goma_load',
         'clusterfuzz.binary_providers.git_checkout',
@@ -489,7 +489,7 @@ class GenericBuilderBuildTest(helpers.ExtendedTestCase):
     """Test build"""
     self.mock.get_build_dir_path.return_value = (
         '/chrome/source/out/clusterfuzz_54321')
-    self.mock.get_main_repo_path.return_value = '/chrome/source'
+    self.mock.get_source_dir_path.return_value = '/chrome/source'
     self.mock.compute_goma_cores.return_value = 120
     self.mock.compute_goma_load.return_value = 8
     self.mock.get_git_sha.return_value = 'sha'
@@ -1124,7 +1124,7 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.get_clank_sha',
-        'clusterfuzz.binary_providers.ChromiumBuilder.get_main_repo_path',
+        'clusterfuzz.binary_providers.ChromiumBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_build_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_binary_name',
     ])
@@ -1140,12 +1140,12 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
 
     self.mock.get_clank_sha.assert_called_once_with('test_url/1234')
 
-  def test_get_source_dir_path(self):
-    """Tests get_source_dir_path."""
-    self.mock.get_main_repo_path.return_value = 'main-repo/src/clank'
-    self.assertEqual('main-repo/src', self.builder.get_source_dir_path())
+  def test_get_main_repo_path(self):
+    """Tests get_main_repo_path."""
+    self.mock.get_source_dir_path.return_value = 'main-repo/src'
+    self.assertEqual('main-repo/src/clank', self.builder.get_main_repo_path())
 
-    self.mock.get_main_repo_path.assert_called_once_with(self.builder)
+    self.mock.get_source_dir_path.assert_called_once_with(self.builder)
 
   def test_get_binary_path(self):
     """Tests get_binary_path."""
@@ -1164,10 +1164,7 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
 
   def test_get_android_libclang_dir_path(self):
     """Tests get_android_libclang_dir_path."""
-    helpers.patch(self, [
-        'clusterfuzz.binary_providers.ClankiumBuilder.get_source_dir_path',
-        'os.listdir'
-    ])
+    helpers.patch(self, ['os.listdir'])
     self.mock.get_source_dir_path.return_value = 'source'
     self.mock.listdir.return_value = ['6.0.0']
 

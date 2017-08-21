@@ -400,14 +400,14 @@ class GenericBuilder(BinaryProvider):
   @common.memoize
   def get_source_dir_path(self):
     """Return the source dir path."""
-    return self.get_main_repo_path()
+    return get_or_ask_for_source_location(self.definition.source_name)
 
   @common.memoize
   def get_main_repo_path(self):
     """Return the main repo path whose SHA is used by `gclient sync` as an
       anchor. Clankium is one example where we build on chromium/src but
       chromium/src/clank is the anchor."""
-    return get_or_ask_for_source_location(self.definition.source_name)
+    return self.get_source_dir_path()
 
   def get_git_sha(self):
     """Return git sha."""
@@ -667,11 +667,9 @@ class ClankiumBuilder(ChromiumBuilder):
     return get_clank_sha(self.definition.revision_url % self.testcase.revision)
 
   @common.memoize
-  def get_source_dir_path(self):
-    """Return the source dir path for Clank. It's the clakium/src which is
-      the parent directory of clankium/src/clank (whose git sha is used as
-      the anchor for gclient sync)."""
-    return os.path.normpath(os.path.join(self.get_main_repo_path(), '..'))
+  def get_main_repo_path(self):
+    """Return the path for Clank. It's the clakium/src/clank."""
+    return os.path.join(self.get_source_dir_path(), 'clank')
 
   def get_binary_path(self):
     """Return the binary path."""
