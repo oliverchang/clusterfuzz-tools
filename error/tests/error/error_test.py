@@ -78,5 +78,5 @@ class InitTest(helpers.ExtendedTestCase):
     error.DifferentStacktraceError(
         10, [Signature('type', ['a', 'b'], 'output')])
     error.GdbNotSupportedOnAndroidError()
-    error.WaitForAndroidAfterInstallingAsanError()
+    error.BootFailed()
     error.NoAndroidDeviceIdError('ANDROID_SERIAL')

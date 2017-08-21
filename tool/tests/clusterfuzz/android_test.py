@@ -88,6 +88,7 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
+        'clusterfuzz.android.reboot',
         'clusterfuzz.common.check_confirm',
         'clusterfuzz.common.check_binary',
         'clusterfuzz.common.execute',
@@ -117,8 +118,7 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
     self.mock.execute.return_value = (
         0, 'blah\n%s\nblah' % android.ASAN_BEING_INSTALLED_SEARCH_STRING)
 
-    with self.assertRaises(error.WaitForAndroidAfterInstallingAsanError):
-      android.ensure_asan('lib_path', 'device')
+    android.ensure_asan('lib_path', 'device')
 
     self.mock.check_confirm.assert_called_once_with(mock.ANY)
     self.mock.execute.assert_called_once_with(
@@ -127,6 +127,7 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
         env={'ADB_PATH': 'adb'},
         redirect_stderr_to_stdout=True,
         cwd='.')
+    self.mock.reboot.assert_called_once_with()
 
 
 class EnsureActiveTest(helpers.ExtendedTestCase):
@@ -172,6 +173,54 @@ class SetContentSettingTest(helpers.ExtendedTestCase):
         'value:value',
         print_command=False,
         print_output=False)
+
+
+class RebootTest(helpers.ExtendedTestCase):
+  """Tests reboot."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb',
+        'clusterfuzz.android.wait_until_fully_booted'
+    ])
+
+  def test_ensure(self):
+    """Tests ensure."""
+    android.reboot()
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('reboot')])
+    self.mock.wait_until_fully_booted.assert_called_once_with()
+
+
+class WaitUntilFullyBooted(helpers.ExtendedTestCase):
+  """Tests wait_until_fully_booted."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb',
+        'time.time'
+    ])
+
+  def test_boot_completed(self):
+    """Tests boot completed."""
+    self.mock.time.side_effect = [1, 5]
+    self.mock.adb.side_effect = [
+        (0, ''),
+        (0, '0\n'),
+        (0, 'package:/system/framework/framework-res.apk\n'),
+        (0, '1\n')]
+    self.assertTrue(android.wait_until_fully_booted())
+
+
+  def test_boot_failed(self):
+    """Tests boot completed."""
+    self.mock.time.side_effect = [1, 601]
+
+    with self.assertRaises(error.BootFailed):
+      android.wait_until_fully_booted()
+
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('wait-for-device')])
 
 
 class EnsureRootAndRemountTest(helpers.ExtendedTestCase):
@@ -229,7 +278,7 @@ class ResetTest(helpers.ExtendedTestCase):
         mock.call('settings/system', 'lockscreen.disabled', 'i:1'),
         mock.call('settings/system', 'notification_light_pulse', 'i:0'),
         mock.call('settings/system', 'screen_brightness_mode', 'i:0'),
-        mock.call('settings/system', 'screen_brightness', 'i:1'),
+        mock.call('settings/system', 'screen_brightness', 'i:255'),
         mock.call('settings/system', 'user_rotation', 'i:0'),
     ])
 

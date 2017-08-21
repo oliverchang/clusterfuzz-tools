@@ -660,6 +660,7 @@ class AndroidChromeReproducer(BaseReproducer):
   def reproduce_crash(self):
     """Reproduce crash on Android."""
     android.reset(self.testcase.android_package_name)
+    android.reboot()
     android.ensure_active()
     android.clear_log()
 

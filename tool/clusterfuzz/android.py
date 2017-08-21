@@ -13,6 +13,8 @@ from error import error
 
 SCREEN_LOCK_SEARCH_STRING = 'mShowingLockscreen=true'
 ASAN_BEING_INSTALLED_SEARCH_STRING = 'Please wait until the device restarts'
+BOOT_TIMEOUT = 600
+BOOT_WAIT_INTERVAL = 10
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -70,10 +72,10 @@ def ensure_asan(android_libclang_dir_path, device_id):
       cwd='.')
 
   # tool/clusterfuzz/resources/asan_device_setup.sh prints the below string
-  # on screen. We've decided to do this hack in order to avoid modifying
-  # asan_device_setup.sh which is copied from Chromium's src.
+  # when it modifies asan configuration on device. So, reboot the device in
+  # that case.
   if ASAN_BEING_INSTALLED_SEARCH_STRING in output:
-    raise error.WaitForAndroidAfterInstallingAsanError()
+    reboot()
 
 
 def convert_android_crash_stack_line(line):
@@ -234,6 +236,67 @@ def set_content_setting(table, key, value):
       print_output=False)
 
 
+def reboot():
+  """Reboot and waits for device."""
+  adb('reboot')
+  wait_until_fully_booted()
+
+
+def wait_until_fully_booted():
+  """Waits until fully booted."""
+
+  def boot_completed():
+    """Tests if boot_completed property is set."""
+    expected = '1\n'
+    _, result = adb_shell('getprop sys.boot_completed',
+                          exit_on_error=False,
+                          print_command=False,
+                          print_output=False)
+    return result == expected
+
+  def drive_ready():
+    """Tests if drive is ready to use."""
+    expected = '0\n'
+    _, result = adb_shell('test -d \'/\'; echo $?',
+                          exit_on_error=False,
+                          print_command=False,
+                          print_output=False)
+    return result == expected
+
+  def package_manager_ready():
+    """Tests if package manager is ready to use."""
+    expected = 'package:/system/framework/framework-res.apk'
+    _, result = adb_shell('pm path android',
+                          exit_on_error=False,
+                          print_command=False,
+                          print_output=False)
+    if not result:
+      return False
+
+    # Ignore any extra messages before or after the result we want.
+    return expected in result.splitlines()
+
+  adb('wait-for-device')
+
+  start_time = time.time()
+  is_boot_completed = False
+  is_drive_ready = False
+  is_package_manager_ready = False
+  while time.time() - start_time < BOOT_TIMEOUT:
+    is_drive_ready = is_drive_ready or drive_ready()
+    is_package_manager_ready = (is_package_manager_ready or
+                                package_manager_ready())
+    is_boot_completed = is_boot_completed or boot_completed()
+    if (is_drive_ready and
+        is_package_manager_ready and
+        is_boot_completed):
+      return True
+
+    time.sleep(BOOT_WAIT_INTERVAL)
+
+  raise error.BootFailed()
+
+
 def ensure_root_and_remount():
   """Ensure adb runs as root."""
   adb('root')
@@ -268,7 +331,7 @@ def reset(package_name):
   set_content_setting('settings/system', 'lockscreen.disabled', 'i:1')
   set_content_setting('settings/system', 'notification_light_pulse', 'i:0')
   set_content_setting('settings/system', 'screen_brightness_mode', 'i:0')
-  set_content_setting('settings/system', 'screen_brightness', 'i:1')
+  set_content_setting('settings/system', 'screen_brightness', 'i:255')
   set_content_setting('settings/system', 'user_rotation', 'i:0')
 
 

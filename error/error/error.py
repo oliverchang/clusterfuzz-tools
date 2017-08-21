@@ -311,17 +311,16 @@ class GdbNotSupportedOnAndroidError(ExpectedException):
         message=self.MESSAGE, exit_code=self.EXIT_CODE)
 
 
-class WaitForAndroidAfterInstallingAsanError(ExpectedException):
-  """An exception is raised after installing ASAN on Android"""
+class BootFailed(ExpectedException):
+  """An exception is raised after device failed to complete boot."""
 
   MESSAGE = (
-      'Please wait until the Android device is rebooted and run the tool '
-      "again. If there's permission error, ensure that` adb remount` succeeds "
-      'and run the tool again.')
+      'Device failed to finish boot. Please inspect logcat output to '
+      'identify the issue.')
   EXIT_CODE = 60
 
   def __init__(self):
-    super(WaitForAndroidAfterInstallingAsanError, self).__init__(
+    super(BootFailed, self).__init__(
         message=self.MESSAGE, exit_code=self.EXIT_CODE)
 
 

@@ -1077,7 +1077,7 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.reproducer.testcase.files = {'test-file': 'content'}
     self.reproducer.testcase.command_line_file_path = (
-        '/data/local/chrome-command-line')
+        '/data/local/tmp/chrome-command-line')
     self.mock.get_device_id.return_value = 'device'
 
   def test_pre_build_steps(self):
@@ -1094,7 +1094,7 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.write_content, [
         mock.call('test-file', 'content'),
         mock.call(
-            '/data/local/chrome-command-line',
+            '/data/local/tmp/chrome-command-line',
             'chrome %s' % self.reproducer.args)
     ])
 
@@ -1111,6 +1111,7 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.fix_lib_path',
         'clusterfuzz.android.get_log',
         'clusterfuzz.android.kill',
+        'clusterfuzz.android.reboot',
         'clusterfuzz.android.reset',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_url',
         'clusterfuzz.reproducers.symbolize',
@@ -1134,6 +1135,7 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
     self.assertEqual((0, 'symbolized'), self.reproducer.reproduce_crash())
 
     self.mock.reset.assert_called_once_with('android.package')
+    self.mock.reboot.assert_called_once_with()
     self.mock.ensure_active.assert_called_once_with()
     self.mock.clear_log.assert_called_once_with()
     self.mock.adb_shell.assert_called_once_with(

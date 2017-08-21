@@ -214,10 +214,6 @@ if [[ x$revert == xyes ]]; then
     fi
 
     echo '>> Restarting shell'
-    # Hack for Android on GCE.
-    if [[ x$ANDROID_GCE == "xTrue" ]]; then
-        adb_shell stop dhcpcd_eth0
-    fi
     adb_shell stop
     adb_shell start
 
@@ -449,10 +445,6 @@ if ! ( cd "$TMPDIRBASE" && diff -qr old/ new/ ) ; then
     fi
 
     echo '>> Restarting shell (asynchronous)'
-    # Hack for Android on GCE.
-    if [[ x$ANDROID_GCE == "xTrue" ]]; then
-        adb_shell stop dhcpcd_eth0
-    fi
     adb_shell stop
     adb_shell start
 

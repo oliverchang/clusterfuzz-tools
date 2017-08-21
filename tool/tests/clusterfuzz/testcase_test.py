@@ -176,7 +176,7 @@ class GetEnvironmentSectionsTest(helpers.ExtendedTestCase):
         {'content': 'debug.assert=0'},
         {'content': 'dalvik.vm.checkjni=true'},
         {'content': 'debug.checkjni=1'},
-        {'content': '[Environment] Command line file = /data/local/chrome-command-line with contents:'},
+        {'content': '[Environment] Command line file = /data/local/tmp/chrome-command-line with contents:'},
         {'content': 'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'},
         {'content': '[Environment] ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1'},
         {'content': ''},
@@ -195,7 +195,7 @@ class GetEnvironmentSectionsTest(helpers.ExtendedTestCase):
          'debug.assert=0\n'
          'dalvik.vm.checkjni=true\n'
          'debug.checkjni=1'),
-        ('Command line file = /data/local/chrome-command-line with contents:\n'
+        ('Command line file = /data/local/tmp/chrome-command-line with contents:\n'
          'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'),
         'ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1',
     ]
@@ -222,7 +222,7 @@ class GetFileContentsForAndroidTest(helpers.ExtendedTestCase):
          'debug.assert=0\n'
          'dalvik.vm.checkjni=true\n'
          'debug.checkjni=1'),
-        ('Command line file = /data/local/chrome-command-line with contents:\n'
+        ('Command line file = /data/local/tmp/chrome-command-line with contents:\n'
          'chrome --disable-in-process-stack-traces --disable-gpu-watchdog --disable-document-mode --enable-test-intents --disable-fre --no-restore-state --js-flags="--expose-gc" /sdcard/fuzzer-testcases/clusterfuzz-testcase-minimized-5883294062477312.html'),
         'ASAN Options file = /data/local/tmp/asan.options with contents redzone=128:allow_user_segv_handler=1:fast_unwind_on_fatal=1:alloc_dealloc_mismatch=0:detect_leaks=0:print_scariness=1:check_malloc_usable_size=0:abort_on_error=0:allocator_may_return_null=1:strict_memcmp=0:detect_container_overflow=0:coverage=0:detect_odr_violation=0:symbolize=0:handle_segv=1:use_sigaltstack=1',
     ]
@@ -253,11 +253,12 @@ class GetCommandLineFilePathTest(helpers.ExtendedTestCase):
   def test_get(self):
     """Tests get."""
     sections = [
-        ('Command line file = /data/local/chrome-command-line with contents:\n'
+        ('Command line file = '
+         '/data/local/tmp/chrome-command-line with contents:\n'
          "doesn't matter"),
     ]
     self.assertEqual(
-        '/data/local/chrome-command-line',
+        '/data/local/tmp/chrome-command-line',
         testcase.get_command_line_file_path(sections))
 
   def test_no_command_line(self):
