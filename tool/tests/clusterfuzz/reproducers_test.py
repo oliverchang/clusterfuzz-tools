@@ -1019,7 +1019,10 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   """Tests methods in AndroidChromeReproducer."""
 
   def setUp(self):
-    helpers.patch(self, ['clusterfuzz.android.adb'])
+    helpers.patch(self, [
+        'clusterfuzz.android.adb',
+        'clusterfuzz.reproducers.get_device_id'
+    ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.mock_os_environment({})
 
@@ -1031,11 +1034,19 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   def test_get_device_id(self):
     """Tests AndroidChromeReproducer.get_device_id."""
     os.environ['ANDROID_SERIAL'] = 'test'
+    self.mock.get_device_id.return_value = None
+    self.assertEqual('test', self.reproducer.get_device_id())
+
+  def test_get_the_first_device_id(self):
+    """Tests AndroidChromeReproducer.get_device_id."""
+    os.environ['ANDROID_SERIAL'] = ''
+    self.mock.get_device_id.return_value = 'test'
     self.assertEqual('test', self.reproducer.get_device_id())
 
   def test_get_device_id_error(self):
     """Tests AndroidChromeReproducer.get_device_id when erroring."""
     os.environ['ANDROID_SERIAL'] = ''
+    self.mock.get_device_id.return_value = None
     with self.assertRaises(error.NoAndroidDeviceIdError):
       self.reproducer.get_device_id()
 
@@ -1177,3 +1188,37 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
             reproducers.SYSTEM_WEBVIEW_APK)),
         mock.call(self.reproducer.binary_path)
     ])
+
+
+class GetDeviceIdTest(helpers.ExtendedTestCase):
+  """Tests get_device_id."""
+
+  def setUp(self):
+    helpers.patch(self, [
+        'clusterfuzz.android.adb'
+    ])
+
+  def test_get(self):
+    """Tests getting device id."""
+    self.mock.adb.return_value = (
+        0,
+        ('List of devices attached\n'
+         '06c02c4b003b806f       device\n'))
+    self.assertEqual('06c02c4b003b806f', reproducers.get_device_id())
+    self.mock.adb.assert_called_once_with('devices')
+
+  def test_multiple(self):
+    """Tests not getting device id because there are multiple devices."""
+    self.mock.adb.return_value = (
+        0,
+        ('List of devices attached\n'
+         '06c02c4b003b806f       device\n'
+         'ZX1SDGWE       device\n'))
+    self.assertIsNone(reproducers.get_device_id())
+    self.mock.adb.assert_called_once_with('devices')
+
+  def test_no_device(self):
+    """Tests no devices."""
+    self.mock.adb.return_value = (0, 'List of devices attached\n')
+    self.assertIsNone(reproducers.get_device_id())
+    self.mock.adb.assert_called_once_with('devices')

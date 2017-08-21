@@ -217,6 +217,17 @@ def symbolize(output, source_dir_path):
   return symbolized_out
 
 
+def get_device_id():
+  """Get the device ID if there's only one."""
+  _, output = android.adb('devices')
+  device_lines = output.strip().splitlines()[1:]
+
+  if len(device_lines) == 1:
+    return re.split(r'\s+', device_lines[0])[0]
+  else:
+    return None
+
+
 class BaseReproducer(object):
   """The basic reproducer class that all other ones are built on."""
 
@@ -607,6 +618,9 @@ class AndroidChromeReproducer(BaseReproducer):
   def get_device_id(self):
     """Get the android device."""
     device_id = os.environ.get(ANDROID_SERIAL_ENV)
+
+    if not device_id:
+      device_id = get_device_id()
 
     if not device_id:
       raise error.NoAndroidDeviceIdError(ANDROID_SERIAL_ENV)
