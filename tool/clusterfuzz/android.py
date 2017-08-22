@@ -11,10 +11,13 @@ from clusterfuzz import output_transformer
 from error import error
 
 
-SCREEN_LOCK_SEARCH_STRING = 'mShowingLockscreen=true'
+
 ASAN_BEING_INSTALLED_SEARCH_STRING = 'Please wait until the device restarts'
+DM_VERITY_ENABLED_STRING = 'dm_verity is enabled'
 BOOT_TIMEOUT = 600
 BOOT_WAIT_INTERVAL = 10
+SCREEN_LOCK_SEARCH_STRING = 'mShowingLockscreen=true'
+
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -72,10 +75,10 @@ def ensure_asan(android_libclang_dir_path, device_id):
       cwd='.')
 
   # tool/clusterfuzz/resources/asan_device_setup.sh prints the below string
-  # when it modifies asan configuration on device. So, reboot the device in
-  # that case.
+  # when it modifies asan configuration on device. So, wait for the reboot to
+  # be complete.
   if ASAN_BEING_INSTALLED_SEARCH_STRING in output:
-    reboot()
+    wait_until_fully_booted()
 
 
 def convert_android_crash_stack_line(line):
@@ -300,7 +303,14 @@ def wait_until_fully_booted():
 def ensure_root_and_remount():
   """Ensure adb runs as root."""
   adb('root')
-  adb('remount')
+  _, output = adb('remount')
+
+  if DM_VERITY_ENABLED_STRING in output:
+    adb('disable-verity')
+    reboot()
+
+    adb('root')
+    adb('remount')
 
 
 def reset(package_name):

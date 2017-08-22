@@ -88,7 +88,7 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.android.reboot',
+        'clusterfuzz.android.wait_until_fully_booted',
         'clusterfuzz.common.check_confirm',
         'clusterfuzz.common.check_binary',
         'clusterfuzz.common.execute',
@@ -127,7 +127,7 @@ class EnsureAsanTest(helpers.ExtendedTestCase):
         env={'ADB_PATH': 'adb'},
         redirect_stderr_to_stdout=True,
         cwd='.')
-    self.mock.reboot.assert_called_once_with()
+    self.mock.wait_until_fully_booted.assert_called_once_with()
 
 
 class EnsureActiveTest(helpers.ExtendedTestCase):
@@ -234,15 +234,34 @@ class EnsureRootAndRemountTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.android.adb'
+        'clusterfuzz.android.adb',
+        'clusterfuzz.android.reboot'
     ])
 
-  def test_ensure(self):
-    """Tests ensure."""
+  def test_verity_disabled(self):
+    """Test with verity disabled."""
+    self.mock.adb.side_effect = [
+        (0, 'restarting adbd as root'),
+        (0, 'remount succeeded')]
     android.ensure_root_and_remount()
     self.assert_exact_calls(self.mock.adb, [
         mock.call('root'), mock.call('remount')
     ])
+
+  def test_verity_enabled(self):
+    """Tests ensure."""
+    self.mock.adb.side_effect = [
+        (0, 'restarting adbd as root'),
+        (0, 'dm_verity is enabled on the system and vendor partitions.'),
+        (0, 'Verity disabled on /system'),
+        (0, 'restarting adbd as root'),
+        (0, 'remount succeeded')]
+    android.ensure_root_and_remount()
+    self.assert_exact_calls(self.mock.adb, [
+        mock.call('root'), mock.call('remount'), mock.call('disable-verity'),
+        mock.call('root'), mock.call('remount')
+    ])
+    self.mock.reboot.assert_called_once_with()
 
 
 class ResetTest(helpers.ExtendedTestCase):
