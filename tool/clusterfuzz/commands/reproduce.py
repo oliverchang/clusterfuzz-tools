@@ -271,6 +271,8 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
   logger.info('Reproducing testcase %s', testcase_id)
   logger.debug('%s', str(options))
 
+  common.ensure_important_dirs()
+
   current_testcase = get_testcase(testcase_id)
   # A hack to download testcase early. Otherwise, OAuth access token might
   # expire after compiling (~1h).

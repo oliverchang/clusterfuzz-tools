@@ -67,6 +67,13 @@ BLACKLISTED_ENVS = {
     'TSAN_OPTIONS': '',
     'UBSAN_OPTIONS': '',
 }
+IMPORTANT_DIRS = [
+    CLUSTERFUZZ_DIR,
+    CLUSTERFUZZ_TMP_DIR,
+    CLUSTERFUZZ_BUILDS_DIR,
+    CLUSTERFUZZ_TESTCASES_DIR,
+    CLUSTERFUZZ_CACHE_DIR
+]
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -79,6 +86,12 @@ Options = namedlist.namedlist(
 
 
 MEMOIZED_CACHE = {}
+
+
+def ensure_important_dirs():
+  """Ensures important dirs."""
+  for path in IMPORTANT_DIRS:
+    ensure_dir(path)
 
 
 def memoize(func):

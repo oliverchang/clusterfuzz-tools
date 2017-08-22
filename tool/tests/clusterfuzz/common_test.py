@@ -731,3 +731,17 @@ class PostTest(helpers.ExtendedTestCase):
     self.assertEqual(1, self.mock.CachedSession.call_count)
     self.assertEqual(1, self.http.mount.call_count)
     self.http.post.assert_called_once_with('a', b='c')
+
+
+class EnsureImportantDirsTest(helpers.ExtendedTestCase):
+  """Tests ensure_important_dirs."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.common.ensure_dir'])
+
+  def test_ensure(self):
+    """Tests ensure."""
+    common.ensure_important_dirs()
+    self.assert_exact_calls(self.mock.ensure_dir, [
+        mock.call(path) for path in common.IMPORTANT_DIRS
+    ])

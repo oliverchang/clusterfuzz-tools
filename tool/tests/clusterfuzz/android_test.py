@@ -198,23 +198,29 @@ class WaitUntilFullyBooted(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.android.adb',
-        'time.time'
+        'clusterfuzz.android.adb_shell',
+        'time.time',
+        'time.sleep'
     ])
 
   def test_boot_completed(self):
     """Tests boot completed."""
-    self.mock.time.side_effect = [1, 5]
-    self.mock.adb.side_effect = [
+    self.mock.time.side_effect = [1, 2, 5]
+    self.mock.adb_shell.side_effect = [
+        (0, ''),
+        (0, ''),
         (0, ''),
         (0, '0\n'),
         (0, 'package:/system/framework/framework-res.apk\n'),
-        (0, '1\n')]
+        (0, '1\n')
+    ]
     self.assertTrue(android.wait_until_fully_booted())
 
 
   def test_boot_failed(self):
     """Tests boot completed."""
-    self.mock.time.side_effect = [1, 601]
+    self.mock.time.side_effect = [1, 2, 601]
+    self.mock.adb_shell.return_value = (0, '')
 
     with self.assertRaises(error.BootFailed):
       android.wait_until_fully_booted()

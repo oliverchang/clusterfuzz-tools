@@ -88,7 +88,6 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.common.delete_if_exists',
         'clusterfuzz.common.execute',
-        'clusterfuzz.common.ensure_dir',
         'clusterfuzz.common.gsutil',
         'clusterfuzz.binary_providers.find_file',
         'tempfile.mkdtemp',
@@ -115,10 +114,6 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
     binary_providers.download_build_if_needed(
         self.dest_path, self.build_url)
 
-    self.assert_exact_calls(self.mock.ensure_dir, [
-        mock.call(common.CLUSTERFUZZ_BUILDS_DIR),
-        mock.call(common.CLUSTERFUZZ_TMP_DIR)
-    ])
     self.mock.execute.assert_called_once_with(
         'unzip', '-q %s -d %s' % (
             os.path.join(common.CLUSTERFUZZ_CACHE_DIR, 'abc.zip'),

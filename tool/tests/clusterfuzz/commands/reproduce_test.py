@@ -52,6 +52,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.chrome_src = '/usr/local/google/home/user/repos/chromium/src'
     self.mock_os_environment({'V8_SRC': '/v8/src', 'CHROME_SRC': '/pdf/src'})
     helpers.patch(self, [
+        'clusterfuzz.common.ensure_important_dirs',
         'clusterfuzz.commands.reproduce.create_builder_class',
         'clusterfuzz.commands.reproduce.get_definition',
         'clusterfuzz.commands.reproduce.get_testcase',
@@ -95,6 +96,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         sanitizer=self.definition.sanitizer,
         options=self.options)
     self.builder.return_value.build.assert_called_once_with()
+    self.mock.ensure_important_dirs.assert_called_once_with()
 
   def test_grab_data_standalone(self):
     """Ensures all method calls are made correctly when building locally."""
@@ -113,6 +115,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         sanitizer=self.definition.sanitizer,
         options=self.options)
     self.builder.return_value.build.assert_called_once_with()
+    self.mock.ensure_important_dirs.assert_called_once_with()
 
 
 class CreateBuilderClassTest(helpers.ExtendedTestCase):

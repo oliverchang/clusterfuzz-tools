@@ -219,8 +219,6 @@ def download_build_if_needed(dest, url):
     return dest
 
   logger.info('Downloading build data...')
-  common.ensure_dir(common.CLUSTERFUZZ_BUILDS_DIR)
-  common.ensure_dir(common.CLUSTERFUZZ_TMP_DIR)
 
   gsutil_path = url.replace(
       'https://storage.cloud.google.com/', 'gs://')
