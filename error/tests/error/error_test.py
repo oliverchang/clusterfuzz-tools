@@ -80,3 +80,4 @@ class InitTest(helpers.ExtendedTestCase):
     error.GdbNotSupportedOnAndroidError()
     error.BootFailed()
     error.NoAndroidDeviceIdError('ANDROID_SERIAL')
+    error.GclientManagedEnabledException('/chromium/.gclient')

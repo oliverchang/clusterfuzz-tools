@@ -1080,7 +1080,10 @@ class GetSourceDirectoryTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     self.setup_fake_filesystem()
-    helpers.patch(self, ['clusterfuzz.common.ask'])
+    helpers.patch(self, [
+        'clusterfuzz.common.ask',
+        'clusterfuzz.binary_providers.check_gclient_managed'
+    ])
     self.source_dir = '~/chromium/src'
 
   def test_get_from_environment(self):
@@ -1091,6 +1094,7 @@ class GetSourceDirectoryTest(helpers.ExtendedTestCase):
 
     self.assertEqual(result, self.source_dir)
     self.assertEqual(0, self.mock.ask.call_count)
+    self.mock.check_gclient_managed.assert_called_once_with(self.source_dir)
 
   def test_ask_and_expand_user(self):
     """Tests getting the source directory and expand user."""
@@ -1101,6 +1105,8 @@ class GetSourceDirectoryTest(helpers.ExtendedTestCase):
 
     result = binary_providers.get_or_ask_for_source_location('chromium')
     self.assertEqual(os.path.expanduser('~/test-dir'), result)
+    self.mock.check_gclient_managed.assert_called_once_with(
+        os.path.expanduser('~/test-dir'))
 
   def test_ask_and_expand_path(self):
     """Tests getting the source directory and expand abspath."""
@@ -1111,6 +1117,8 @@ class GetSourceDirectoryTest(helpers.ExtendedTestCase):
 
     result = binary_providers.get_or_ask_for_source_location('chromium')
     self.assertEqual(os.path.abspath('./test-dir'), result)
+    self.mock.check_gclient_managed.assert_called_once_with(
+        os.path.abspath('./test-dir'))
 
 
 class ClankiumBuilderTest(helpers.ExtendedTestCase):
@@ -1211,3 +1219,41 @@ class GetClankShaTest(helpers.ExtendedTestCase):
 
     self.mock.gsutil.assert_called_once_with(
         'cp url/12345 %s' % self.path, cwd='.')
+
+
+class CheckGclientManagedTest(helpers.ExtendedTestCase):
+  """Tests check_gclient_managed."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+
+  def test_has_managed(self):
+    """Tests .gclient contains managed=True."""
+    self.fs.CreateFile(
+        '/chromium/.gclient',
+        contents=(
+            'solutions = [\n'
+            '  {\n'
+            '    "managed":    True,\n'
+            '  },\n'
+            ']'))
+
+    with self.assertRaises(error.GclientManagedEnabledException):
+      binary_providers.check_gclient_managed('/chromium/src')
+
+  def test_no_managed(self):
+    """Tests .gclient contains managed=False."""
+    self.fs.CreateFile(
+        '/chromium/.gclient',
+        contents=(
+            'solutions = [\n'
+            '  {\n'
+            '    "managed":    False,\n'
+            '  },\n'
+            ']'))
+
+    binary_providers.check_gclient_managed('/chromium/src')
+
+  def test_no_gclient(self):
+    """Tests no .gclient."""
+    binary_providers.check_gclient_managed('/chromium/src')

@@ -295,22 +295,39 @@ def get_binary_name(stacktrace):
   raise error.MinimizationNotFinishedError()
 
 
+def check_gclient_managed(source_name):
+  """Check managed=True in .gclient."""
+  dot_gclient_path = os.path.realpath(
+      os.path.join(source_name, '..', '.gclient'))
+
+  if not os.path.exists(dot_gclient_path):
+    return
+
+  with open(dot_gclient_path, 'r') as file_handle:
+    content = file_handle.read()
+
+  if re.search('[\'"]managed[\'"]:\\s+True', content):
+    raise error.GclientManagedEnabledException(dot_gclient_path)
+
+
 def get_or_ask_for_source_location(source_name):
   """Returns the location of the source directory."""
 
   source_env = '%s_SRC' % source_name.upper()
 
   if os.environ.get(source_env):
-    return os.environ.get(source_env)
+    source_directory = os.environ.get(source_env)
+  else:
+    message = ('This is a %(name)s testcase, please define %(env_name)s'
+               ' or enter your %(name)s source location here' %
+               {'name': source_name, 'env_name': source_env})
 
-  message = ('This is a %(name)s testcase, please define %(env_name)s'
-             ' or enter your %(name)s source location here' %
-             {'name': source_name, 'env_name': source_env})
+    source_directory = common.get_valid_abs_dir(
+        common.ask(
+            message, 'Please enter a valid directory',
+            common.get_valid_abs_dir))
 
-  source_directory = common.get_valid_abs_dir(
-      common.ask(
-          message, 'Please enter a valid directory', common.get_valid_abs_dir))
-
+  check_gclient_managed(source_directory)
   return source_directory
 
 

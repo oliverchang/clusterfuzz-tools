@@ -334,3 +334,21 @@ class NoAndroidDeviceIdError(ExpectedException):
     super(NoAndroidDeviceIdError, self).__init__(
         message=self.MESSAGE.format(env_name=env_name),
         exit_code=self.EXIT_CODE)
+
+
+class GclientManagedEnabledException(ExpectedException):
+  """An exception is raised when .gclient contains managed=True."""
+
+  # pylint: disable=line-too-long
+  MESSAGE = (
+      'Please disabled `managed` in {dot_gclient_path}. `managed=True` has '
+      'been deprecated, and it checkouts repo to a wrong SHA. See: '
+      'https://www.chromium.org/developers/how-tos/get-the-code/gclient-managed-mode'
+  )
+  # pylint: enable=line-too-long
+  EXIT_CODE = 62
+
+  def __init__(self, dot_gclient_path):
+    super(GclientManagedEnabledException, self).__init__(
+        message=self.MESSAGE.format(dot_gclient_path=dot_gclient_path),
+        exit_code=self.EXIT_CODE)
