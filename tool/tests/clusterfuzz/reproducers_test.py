@@ -1021,7 +1021,7 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.android.adb',
-        'clusterfuzz.reproducers.get_device_id'
+        'clusterfuzz.reproducers.set_device_id_if_possible'
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.mock_os_environment({})
@@ -1034,21 +1034,15 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   def test_get_device_id(self):
     """Tests AndroidChromeReproducer.get_device_id."""
     os.environ['ANDROID_SERIAL'] = 'test'
-    self.mock.get_device_id.return_value = None
     self.assertEqual('test', self.reproducer.get_device_id())
-
-  def test_get_the_first_device_id(self):
-    """Tests AndroidChromeReproducer.get_device_id."""
-    os.environ['ANDROID_SERIAL'] = ''
-    self.mock.get_device_id.return_value = 'test'
-    self.assertEqual('test', self.reproducer.get_device_id())
+    self.mock.set_device_id_if_possible.assert_called_once_with()
 
   def test_get_device_id_error(self):
     """Tests AndroidChromeReproducer.get_device_id when erroring."""
     os.environ['ANDROID_SERIAL'] = ''
-    self.mock.get_device_id.return_value = None
     with self.assertRaises(error.NoAndroidDeviceIdError):
       self.reproducer.get_device_id()
+    self.mock.set_device_id_if_possible.assert_called_once_with()
 
   def test_get_testcase_path(self):
     """Tests AndroidChromeReproducer.get_testcase_path."""
@@ -1115,11 +1109,13 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.reset',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_url',
         'clusterfuzz.reproducers.symbolize',
+        'clusterfuzz.reproducers.run_monkey_gestures_if_needed',
         'time.sleep',
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.reproducer.testcase.android_package_name = 'android.package'
     self.reproducer.testcase.android_main_class_name = 'android.Main'
+    self.reproducer.testcase.gestures = ['monkey,1234']
     self.mock.get_testcase_url.return_value = 'testcase-path'
     self.setup_fake_filesystem()
     os.makedirs(common.CLUSTERFUZZ_TMP_DIR)
@@ -1156,6 +1152,9 @@ class AndroidChromeReproducerReproduceCrashTest(helpers.ExtendedTestCase):
         lib_tmp_dir_path=mock.ANY)
     self.mock.symbolize.assert_called_once_with(
         'fixed log', self.reproducer.binary_provider.get_source_dir_path())
+    self.mock.run_monkey_gestures_if_needed.assert_called_once_with(
+        self.reproducer.testcase.android_package_name,
+        self.reproducer.testcase.gestures)
 
 
 class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
@@ -1192,13 +1191,14 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
     ])
 
 
-class GetDeviceIdTest(helpers.ExtendedTestCase):
-  """Tests get_device_id."""
+class SetDeviceIdIfPossibleTest(helpers.ExtendedTestCase):
+  """Tests set_device_id_if_possible."""
 
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.android.adb'
     ])
+    self.mock_os_environment({})
 
   def test_get(self):
     """Tests getting device id."""
@@ -1206,7 +1206,9 @@ class GetDeviceIdTest(helpers.ExtendedTestCase):
         0,
         ('List of devices attached\n'
          '06c02c4b003b806f       device\n'))
-    self.assertEqual('06c02c4b003b806f', reproducers.get_device_id())
+    reproducers.set_device_id_if_possible()
+    self.assertEqual(
+        '06c02c4b003b806f', os.environ.get(reproducers.ANDROID_SERIAL_ENV))
     self.mock.adb.assert_called_once_with('devices')
 
   def test_multiple(self):
@@ -1216,11 +1218,46 @@ class GetDeviceIdTest(helpers.ExtendedTestCase):
         ('List of devices attached\n'
          '06c02c4b003b806f       device\n'
          'ZX1SDGWE       device\n'))
-    self.assertIsNone(reproducers.get_device_id())
+    reproducers.set_device_id_if_possible()
+    self.assertIsNone(os.environ.get(reproducers.ANDROID_SERIAL_ENV))
     self.mock.adb.assert_called_once_with('devices')
 
   def test_no_device(self):
     """Tests no devices."""
     self.mock.adb.return_value = (0, 'List of devices attached\n')
-    self.assertIsNone(reproducers.get_device_id())
+    reproducers.set_device_id_if_possible()
+    self.assertIsNone(os.environ.get(reproducers.ANDROID_SERIAL_ENV))
     self.mock.adb.assert_called_once_with('devices')
+
+  def test_env_set(self):
+    """Tests env is already set."""
+    os.environ[reproducers.ANDROID_SERIAL_ENV] = 'device'
+    reproducers.set_device_id_if_possible()
+    self.assertEqual('device', os.environ.get(reproducers.ANDROID_SERIAL_ENV))
+    self.assertEqual(0, self.mock.adb.call_count)
+
+
+class RunMonkeyGesturesIfNeededTest(helpers.ExtendedTestCase):
+  """Tests run_monkey_gestures_if_needed."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.adb_shell', 'time.sleep'])
+
+  def test_no_gestures(self):
+    """Tests no gestures."""
+    reproducers.run_monkey_gestures_if_needed('package', None)
+    reproducers.run_monkey_gestures_if_needed('package', [])
+    self.assertEqual(0, self.mock.adb_shell.call_count)
+
+  def test_not_monkey(self):
+    """Tests not monkey."""
+    reproducers.run_monkey_gestures_if_needed('package', ['something,else'])
+    self.assertEqual(0, self.mock.adb_shell.call_count)
+
+  def test_run(self):
+    """Tests run."""
+    reproducers.run_monkey_gestures_if_needed('package', ['monkey,123'])
+    self.mock.adb_shell.assert_called_once_with(
+        'monkey -p package -s 123 --throttle %s '
+        '--ignore-security-exceptions %s' %
+        (reproducers.MONKEY_THROTTLE_DELAY, reproducers.NUM_MONKEY_EVENTS))

@@ -50,6 +50,9 @@ SYSTEM_WEBVIEW_APK = 'SystemWebViewGoogle.apk'
 LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS = time.mktime(
     (2017, 8, 11, 0, 0, 0, 0, 0, 0))
 
+MONKEY_THROTTLE_DELAY = 100
+NUM_MONKEY_EVENTS = 50
+
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -217,15 +220,33 @@ def symbolize(output, source_dir_path):
   return symbolized_out
 
 
-def get_device_id():
+def set_device_id_if_possible():
   """Get the device ID if there's only one."""
+  if os.environ.get(ANDROID_SERIAL_ENV):
+    return
+
   _, output = android.adb('devices')
   device_lines = output.strip().splitlines()[1:]
 
   if len(device_lines) == 1:
-    return re.split(r'\s+', device_lines[0])[0]
-  else:
-    return None
+    os.environ[ANDROID_SERIAL_ENV] = re.split(r'\s+', device_lines[0])[0]
+
+
+def run_monkey_gestures_if_needed(package_name, gestures):
+  """Runs monkey gestures if gestures isn't empty."""
+  if not gestures:
+    return
+
+  gestures = gestures[0].split(',')
+
+  if gestures[0] != 'monkey':
+    return
+
+  seed = gestures[-1]
+  android.adb_shell(
+      'monkey -p %s -s %s --throttle %s --ignore-security-exceptions %s' %
+      (package_name, seed, MONKEY_THROTTLE_DELAY, NUM_MONKEY_EVENTS))
+  time.sleep(10)
 
 
 class BaseReproducer(object):
@@ -617,10 +638,8 @@ class AndroidChromeReproducer(BaseReproducer):
   @common.memoize
   def get_device_id(self):
     """Get the android device."""
+    set_device_id_if_possible()
     device_id = os.environ.get(ANDROID_SERIAL_ENV)
-
-    if not device_id:
-      device_id = get_device_id()
 
     if not device_id:
       raise error.NoAndroidDeviceIdError(ANDROID_SERIAL_ENV)
@@ -673,6 +692,9 @@ class AndroidChromeReproducer(BaseReproducer):
         redirect_stderr_to_stdout=True,
         stdout_transformer=output_transformer.Identity())
     time.sleep(TEST_TIMEOUT)
+
+    run_monkey_gestures_if_needed(
+        self.testcase.android_package_name, self.testcase.gestures)
 
     output = android.get_log()
     android.kill(self.testcase.android_package_name)

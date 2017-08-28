@@ -250,21 +250,21 @@ def wait_until_fully_booted():
 
   def boot_completed():
     """Tests if boot_completed property is set."""
-    expected = '1\n'
+    expected = '1'
     _, result = adb_shell('getprop sys.boot_completed',
                           exit_on_error=False,
                           print_command=False,
                           print_output=False)
-    return result == expected
+    return result.strip() == expected
 
   def drive_ready():
     """Tests if drive is ready to use."""
-    expected = '0\n'
+    expected = '0'
     _, result = adb_shell('test -d \'/\'; echo $?',
                           exit_on_error=False,
                           print_command=False,
                           print_output=False)
-    return result == expected
+    return result.strip() == expected
 
   def package_manager_ready():
     """Tests if package manager is ready to use."""
@@ -285,7 +285,7 @@ def wait_until_fully_booted():
   is_boot_completed = False
   is_drive_ready = False
   is_package_manager_ready = False
-  while time.time() - start_time < BOOT_TIMEOUT:
+  while (time.time() - start_time) < BOOT_TIMEOUT:
     is_drive_ready = is_drive_ready or drive_ready()
     is_package_manager_ready = (is_package_manager_ready or
                                 package_manager_ready())
