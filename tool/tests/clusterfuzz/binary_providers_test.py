@@ -89,7 +89,7 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.delete_if_exists',
         'clusterfuzz.common.execute',
         'clusterfuzz.common.gsutil',
-        'clusterfuzz.binary_providers.find_file',
+        'clusterfuzz.common.find_file',
         'tempfile.mkdtemp',
         'shutil.copytree',
         'os.path.exists'
@@ -130,31 +130,6 @@ class DownloadBuildIfNeededTest(helpers.ExtendedTestCase):
         'cp gs://test/test2/abc.zip .', common.CLUSTERFUZZ_CACHE_DIR)
     self.mock.find_file.assert_called_once_with(
         'args.gn', self.mock.mkdtemp.return_value)
-
-
-class FindFileTest(helpers.ExtendedTestCase):
-  """Tests find_file."""
-
-  def setUp(self):
-    self.setup_fake_filesystem()
-
-  def test_not_found(self):
-    """Tests not found."""
-    os.makedirs('/tmp/test/sub')
-    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
-
-    with self.assertRaises(Exception):
-      binary_providers.find_file('args.gn', '/tmp/test')
-
-  def test_find(self):
-    """Tests not found."""
-    os.makedirs('/tmp/test/sub')
-    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
-    self.fs.CreateFile('/tmp/test/sub/args.gn', contents='test')
-
-    self.assertEqual(
-        '/tmp/test/sub/args.gn',
-        binary_providers.find_file('args.gn', '/tmp/test'))
 
 
 class GetBinaryPathTest(helpers.ExtendedTestCase):

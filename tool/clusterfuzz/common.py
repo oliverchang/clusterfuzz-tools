@@ -90,6 +90,7 @@ MEMOIZED_CACHE = {}
 
 def ensure_important_dirs():
   """Ensures important dirs."""
+  delete_if_exists(CLUSTERFUZZ_TMP_DIR)
   for path in IMPORTANT_DIRS:
     ensure_dir(path)
 
@@ -272,6 +273,20 @@ def edit_if_needed(content, prefix, comment, should_edit):
     return content
 
   return editor.edit(content, prefix=prefix, comment=comment)
+
+
+def find_file(target_filename, parent_dir):
+  """Return the full path under parent_dir. In Chrome, the binary is
+    inside a sub-directory. But, in Android, the binary is in the parent dir.
+    This is also useful for finding the testcase file."""
+  for root, _, files in os.walk(parent_dir):
+    for filename in files:
+      if filename == target_filename:
+        return os.path.join(root, filename)
+
+  raise Exception(
+      'Cannot find file named %s in directory %s.' %
+      (target_filename, parent_dir))
 
 
 def check_binary(binary, cwd):

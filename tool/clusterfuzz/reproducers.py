@@ -52,6 +52,7 @@ LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS = time.mktime(
 
 MONKEY_THROTTLE_DELAY = 100
 NUM_MONKEY_EVENTS = 50
+ANDROID_TESTCASE_DIR = '/sdcard/clusterfuzz'
 
 logger = logging.getLogger('clusterfuzz')
 
@@ -649,9 +650,15 @@ class AndroidChromeReproducer(BaseReproducer):
   @common.memoize
   def get_testcase_path(self):
     """Get the testcase path."""
-    testcase_filename = os.path.basename(self.testcase.get_testcase_path())
-    android.adb('push %s /sdcard/' % self.testcase.get_testcase_path())
-    return '/sdcard/%s' % testcase_filename
+    android.adb_shell('rm -rf %s' % ANDROID_TESTCASE_DIR)
+    android_testcase_dir = '%s/%s' % (ANDROID_TESTCASE_DIR, self.testcase.id)
+
+    testcase_relative_path = os.path.relpath(
+        self.testcase.get_testcase_path(), self.testcase.testcase_dir_path)
+    android.adb('push %s %s' % (
+        self.testcase.testcase_dir_path, android_testcase_dir))
+
+    return '%s/%s' % (android_testcase_dir, testcase_relative_path)
 
   def install(self):
     """Instal chrome on Android."""

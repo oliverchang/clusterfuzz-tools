@@ -16,6 +16,8 @@
 import logging
 import os
 import re
+import shutil
+import tempfile
 import zipfile
 
 from clusterfuzz import common
@@ -29,15 +31,6 @@ TESTCASE_CACHE_TTL = 6 * 60 * 60  # The testcase file is cached for 6 hours.
 
 
 logger = logging.getLogger('clusterfuzz')
-
-
-def get_file_extension(absolute_path):
-  """Pulls the file extension from the path, returns '' if no extension."""
-  split_filename = absolute_path.split('.')
-  if len(split_filename) < 2:
-    return ''
-  else:
-    return '.%s' % split_filename[-1]
 
 
 def _unescape(string):
@@ -170,11 +163,9 @@ def get_package_and_main_class_names(stacktrace_lines):
   raise Exception('Cannot find the package and main class in the stacktrace.')
 
 
-def download_testcase(url, dest_dir):
+def download_testcase(url):
   """Download the testcase into dest_dir."""
-  common.delete_if_exists(dest_dir)
-  os.makedirs(dest_dir)
-
+  tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_TMP_DIR)
   logger.info('Downloading testcase files...')
 
   auth_header = common.get_stored_auth_header()
@@ -184,7 +175,8 @@ def download_testcase(url, dest_dir):
       '--no-verbose --waitretry=%s --retry-connrefused --content-disposition '
       '--header="Authorization: %s" "%s"' %
       (DOWNLOAD_TIMEOUT, auth_header, url))
-  common.execute('wget', args, dest_dir)
+  common.execute('wget', args, tmp_dir_path)
+  return os.path.join(tmp_dir_path, os.listdir(tmp_dir_path)[0])
 
 
 def create(testcase_json):
@@ -222,7 +214,6 @@ def create(testcase_json):
       build_url=testcase_json['metadata']['build_url'],
       job_type=testcase_json['testcase']['job_type'],
       absolute_path=absolute_path,
-      file_extension=get_file_extension(absolute_path),
       reproducible=not testcase_json['testcase']['one_time_crasher_flag'],
       gestures=testcase_json['testcase'].get('gestures'),
       crash_type=testcase_json['crash_type'],
@@ -236,20 +227,18 @@ def create(testcase_json):
 
 
 def get_true_testcase_path(
-    testcase_dir_path, expected_absolute_path, expected_extension, filename):
+    testcase_dir_path, testcase_absolute_path, downloaded_file_path):
   """Return actual testcase path, unzips testcase if required."""
-  if filename.endswith('.zip'):
-    zipped_file = zipfile.ZipFile(os.path.join(
-        testcase_dir_path, filename), 'r')
+  filename = os.path.basename(testcase_absolute_path)
+  if downloaded_file_path.endswith('.zip'):
+    zipped_file = zipfile.ZipFile(downloaded_file_path, 'r')
     zipped_file.extractall(testcase_dir_path)
     zipped_file.close()
-    return os.path.join(testcase_dir_path, expected_absolute_path)
+    return common.find_file(filename, testcase_dir_path)
   else:
-    true_testcase_path = os.path.join(
-        testcase_dir_path, 'testcase%s' % expected_extension)
-    current_testcase_path = os.path.join(testcase_dir_path, filename)
-    os.rename(current_testcase_path, true_testcase_path)
-    return true_testcase_path
+    dest_path = os.path.join(testcase_dir_path, filename)
+    shutil.move(downloaded_file_path, dest_path)
+    return dest_path
 
 
 class Testcase(object):
@@ -257,10 +246,9 @@ class Testcase(object):
 
   def __init__(
       self, testcase_id, stacktrace_lines, environment, reproduction_args,
-      revision, build_url, job_type, absolute_path, file_extension,
-      reproducible, gestures, crash_type, crash_state, raw_gn_args, files,
-      command_line_file_path, android_package_name, android_main_class_name,
-      created_at):
+      revision, build_url, job_type, absolute_path, reproducible, gestures,
+      crash_type, crash_state, raw_gn_args, files, command_line_file_path,
+      android_package_name, android_main_class_name, created_at):
     self.id = testcase_id
     self.stacktrace_lines = stacktrace_lines
     self.environment = environment
@@ -269,7 +257,6 @@ class Testcase(object):
     self.build_url = build_url
     self.job_type = job_type
     self.absolute_path = absolute_path
-    self.file_extension = file_extension
     self.reproducible = reproducible
     self.gestures = gestures
     self.crash_type = crash_type
@@ -287,10 +274,10 @@ class Testcase(object):
   @common.memoize
   def get_testcase_path(self):
     """Downloads & returns the location of the testcase file."""
-    download_testcase(
-        CLUSTERFUZZ_TESTCASE_URL % self.id, self.testcase_dir_path)
+    downloaded_file_path = download_testcase(CLUSTERFUZZ_TESTCASE_URL % self.id)
 
-    downloaded_filename = os.listdir(self.testcase_dir_path)[0]
+    common.delete_if_exists(self.testcase_dir_path)
+    os.makedirs(self.testcase_dir_path)
+
     return get_true_testcase_path(
-        self.testcase_dir_path, self.absolute_path, self.file_extension,
-        downloaded_filename)
+        self.testcase_dir_path, self.absolute_path, downloaded_file_path)

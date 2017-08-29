@@ -50,18 +50,6 @@ def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
   return testcase.create(testcase_json)
 
 
-class FileExtensionTest(helpers.ExtendedTestCase):
-  """Test get_file_extension."""
-
-  def test_no_extension(self):
-    """Tests functionality when the testcase has no extension."""
-    self.assertEqual('', testcase.get_file_extension('testcase'))
-
-  def test_with_extension(self):
-    """Tests functionality when the testcase has an extension."""
-    self.assertEqual('.py', testcase.get_file_extension('testcase.py'))
-
-
 class TestcaseSetupTest(helpers.ExtendedTestCase):
   """Tests populating the testcase parameters."""
 
@@ -273,26 +261,22 @@ class DownloadTestcaseTest(helpers.ExtendedTestCase):
   """Test download_testcase."""
 
   def setUp(self):
-    self.setup_fake_filesystem()
     helpers.patch(self, [
         'clusterfuzz.common.execute',
         'clusterfuzz.common.get_stored_auth_header',
-        'os.stat',
-        'time.time',
+        'tempfile.mkdtemp',
+        'os.listdir'
     ])
     self.mock.get_stored_auth_header.return_value = 'Bearer 1a2s3d4f'
     self.dir = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
-    self.fake_dir = self.fs.CreateDirectory(self.dir)
-    self.fs.CreateFile(
-        os.path.join(self.dir, 'testcase.html'), contents='test')
+    self.mock.mkdtemp.return_value = '/tmp/folder'
+    self.mock.listdir.return_value = ['first-file']
 
   def test_downloading_testcase(self):
     """Tests the creation of folders & downloading of the testcase"""
-    self.fake_dir.SetCTime(9)
-    self.mock.time.return_value = testcase.TESTCASE_CACHE_TTL + 10
-
-    testcase.download_testcase('url', self.dir)
+    self.assertEqual(
+        '/tmp/folder/first-file', testcase.download_testcase('url'))
 
     self.mock.get_stored_auth_header.assert_called_once_with()
     self.mock.execute.assert_called_once_with(
@@ -301,9 +285,9 @@ class DownloadTestcaseTest(helpers.ExtendedTestCase):
          '--content-disposition --header="Authorization: %s" "url"' % (
              testcase.DOWNLOAD_TIMEOUT,
              self.mock.get_stored_auth_header.return_value)),
-        self.dir
+        '/tmp/folder'
     )
-    self.assertTrue(os.path.exists(self.dir))
+    self.mock.listdir.assert_called_once_with('/tmp/folder')
 
 
 class GetTestcasePathTest(helpers.ExtendedTestCase):
@@ -311,9 +295,10 @@ class GetTestcasePathTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'os.listdir',
+        'clusterfuzz.common.delete_if_exists',
         'clusterfuzz.testcase.get_true_testcase_path',
-        'clusterfuzz.testcase.download_testcase'
+        'clusterfuzz.testcase.download_testcase',
+        'os.makedirs'
     ])
     self.test = build_base_testcase()
     self.testcase_dir = os.path.join(
@@ -321,49 +306,57 @@ class GetTestcasePathTest(helpers.ExtendedTestCase):
 
   def test_downloading_testcase(self):
     """Tests the creation of folders & downloading of the testcase"""
-    self.mock.listdir.return_value = ['test.js']
     self.mock.get_true_testcase_path.return_value = 'true_path'
     self.assertEqual('true_path', self.test.get_testcase_path())
 
     self.mock.download_testcase.assert_called_once_with(
-        testcase.CLUSTERFUZZ_TESTCASE_URL % str(12345), self.testcase_dir)
+        testcase.CLUSTERFUZZ_TESTCASE_URL % str(12345))
+    self.mock.delete_if_exists.assert_called_once_with(self.testcase_dir)
+    self.mock.makedirs.assert_called_once_with(self.testcase_dir)
 
 
 class GetTrueTestcasePathTest(helpers.ExtendedTestCase):
   """Tests the get_true_testcase_path method."""
 
   def setUp(self):
-    helpers.patch(self, ['zipfile.ZipFile', 'os.rename'])
+    helpers.patch(self, [
+        'clusterfuzz.common.find_file',
+        'shutil.move',
+        'zipfile.ZipFile',
+    ])
     self.mock.ZipFile.return_value = mock.Mock()
     self.absolute_path = 'to/testcase.js'
     self.testcase_dir_path = os.path.join(
         common.CLUSTERFUZZ_TESTCASES_DIR, '12345_testcase')
-    self.file_extension = '.js'
 
   def test_zipfile(self):
     """Tests when the file is a zipfile."""
+    self.mock.find_file.return_value = 'after-find-file'
     self.assertEqual(
-        os.path.join(self.testcase_dir_path, 'to', 'testcase.js'),
+        'after-find-file',
         testcase.get_true_testcase_path(
-            self.testcase_dir_path, self.absolute_path, self.file_extension,
-            'abcd.zip')
+            self.testcase_dir_path, self.absolute_path, 'abcd.zip')
     )
 
     self.mock.ZipFile.assert_has_calls([
-        mock.call(os.path.join(self.testcase_dir_path, 'abcd.zip'), 'r'),
+        mock.call('abcd.zip', 'r'),
         mock.call().extractall(self.testcase_dir_path)
     ])
+    self.mock.find_file.assert_called_once_with(
+        'testcase.js', self.testcase_dir_path)
 
   def test_no_zipfile(self):
     """Tests when the downloaded file is not zipped."""
-    testcase.get_true_testcase_path(
-        self.testcase_dir_path, self.absolute_path, self.file_extension,
-        'abcd.js')
+    self.assertEqual(
+        os.path.join(self.testcase_dir_path, 'testcase.js'),
+        testcase.get_true_testcase_path(
+            self.testcase_dir_path, self.absolute_path, 'abcd.js'))
 
     self.assert_n_calls(0, [self.mock.ZipFile])
-    self.assert_exact_calls(self.mock.rename, [
-        mock.call(os.path.join(self.testcase_dir_path, 'abcd.js'),
-                  os.path.join(self.testcase_dir_path, 'testcase.js'))])
+    self.assert_exact_calls(self.mock.move, [
+        mock.call(
+            'abcd.js', os.path.join(self.testcase_dir_path, 'testcase.js'))
+    ])
 
 
 class GetPackageAndMainClassNamesTest(helpers.ExtendedTestCase):

@@ -737,7 +737,10 @@ class EnsureImportantDirsTest(helpers.ExtendedTestCase):
   """Tests ensure_important_dirs."""
 
   def setUp(self):
-    helpers.patch(self, ['clusterfuzz.common.ensure_dir'])
+    helpers.patch(self, [
+        'clusterfuzz.common.ensure_dir',
+        'clusterfuzz.common.delete_if_exists'
+    ])
 
   def test_ensure(self):
     """Tests ensure."""
@@ -745,3 +748,31 @@ class EnsureImportantDirsTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.ensure_dir, [
         mock.call(path) for path in common.IMPORTANT_DIRS
     ])
+    self.assert_exact_calls(self.mock.delete_if_exists, [
+        mock.call(common.CLUSTERFUZZ_TMP_DIR)
+    ])
+
+
+class FindFileTest(helpers.ExtendedTestCase):
+  """Tests find_file."""
+
+  def setUp(self):
+    self.setup_fake_filesystem()
+
+  def test_not_found(self):
+    """Tests not found."""
+    os.makedirs('/tmp/test/sub')
+    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
+
+    with self.assertRaises(Exception):
+      common.find_file('args.gn', '/tmp/test')
+
+  def test_find(self):
+    """Tests not found."""
+    os.makedirs('/tmp/test/sub')
+    self.fs.CreateFile('/tmp/test/sub/test.hello', contents='test')
+    self.fs.CreateFile('/tmp/test/sub/args.gn', contents='test')
+
+    self.assertEqual(
+        '/tmp/test/sub/args.gn',
+        common.find_file('args.gn', '/tmp/test'))

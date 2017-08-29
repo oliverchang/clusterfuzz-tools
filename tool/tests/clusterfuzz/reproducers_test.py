@@ -1021,10 +1021,15 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.android.adb',
+        'clusterfuzz.android.adb_shell',
         'clusterfuzz.reproducers.set_device_id_if_possible'
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
     self.mock_os_environment({})
+    self.reproducer.testcase.id = '1234'
+    self.reproducer.testcase.testcase_dir_path = '/something'
+    self.reproducer.testcase.get_testcase_path.return_value = (
+        '/something/mnt/test.html')
 
   def test_reproduce_debug(self):
     """Tests AndroidChromeReproducer.reproduce_debug."""
@@ -1046,11 +1051,13 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
 
   def test_get_testcase_path(self):
     """Tests AndroidChromeReproducer.get_testcase_path."""
-    self.reproducer.testcase.get_testcase_path.return_value = '/mnt/test.html'
     self.assertEqual(
-        '/sdcard/test.html', self.reproducer.get_testcase_path())
+        '%s/1234/mnt/test.html' % reproducers.ANDROID_TESTCASE_DIR,
+        self.reproducer.get_testcase_path())
     self.mock.adb.assert_called_once_with(
-        'push /mnt/test.html /sdcard/')
+        'push /something %s/1234' % reproducers.ANDROID_TESTCASE_DIR)
+    self.mock.adb_shell.assert_called_once_with(
+        'rm -rf %s' % reproducers.ANDROID_TESTCASE_DIR)
 
 
 class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):

@@ -200,19 +200,6 @@ def serialize_gn_args(args_hash):
   return '\n'.join(args)
 
 
-def find_file(target_filename, parent_dir):
-  """Return the full path under parent_dir. In Chrome, the binary is
-    inside a sub-directory. But, in Android, the binary is in the parent dir."""
-  for root, _, files in os.walk(parent_dir):
-    for filename in files:
-      if filename == target_filename:
-        return os.path.join(root, filename)
-
-  raise Exception(
-      'Cannot find file named %s in directory %s.' %
-      (target_filename, parent_dir))
-
-
 def download_build_if_needed(dest, url):
   """Download and extract a build (if it's not already there)."""
   if os.path.exists(dest):
@@ -232,7 +219,7 @@ def download_build_if_needed(dest, url):
 
   # args.gn is guaranteed to be in the wanted folder. In Chrome, it's under a
   # sub-directory. In Android, it's in the top dir.
-  args_gn_path = find_file('args.gn', tmp_dir_path)
+  args_gn_path = common.find_file('args.gn', tmp_dir_path)
   shutil.copytree(os.path.dirname(args_gn_path), dest)
 
   logger.info('Cleaning up...')
