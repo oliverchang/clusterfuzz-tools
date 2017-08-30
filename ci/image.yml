@@ -52,6 +52,12 @@
         state: present
         regexp: '^%clusterfuzz'
         line: '%clusterfuzz ALL=(ALL) NOPASSWD: ALL'
+    - name: Allow clusterfuzz user to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^clusterfuzz'
+        line: 'clusterfuzz ALL=(ALL) NOPASSWD: ALL'
     - user:
         name: clusterfuzz
         state: present
