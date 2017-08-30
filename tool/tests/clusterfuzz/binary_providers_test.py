@@ -603,6 +603,7 @@ class ChromiumBuilderTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
+        'clusterfuzz.binary_providers.install_build_deps',
         'clusterfuzz.binary_providers.sha_from_revision',
         'clusterfuzz.common.execute',
         'clusterfuzz.binary_providers.get_binary_name',
@@ -622,6 +623,8 @@ class ChromiumBuilderTest(helpers.ExtendedTestCase):
   def test_install_deps(self):
     """Test install_deps."""
     self.builder.install_deps()
+    self.mock.install_build_deps.assert_called_once_with(
+        '/src', include_lib32=False)
     self.mock.execute.assert_called_once_with(
         'python', 'tools/clang/scripts/update.py', '/src')
 
@@ -640,6 +643,7 @@ class V8BuilderTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.sha_from_revision',
+        'clusterfuzz.binary_providers.install_build_deps',
         'clusterfuzz.common.execute',
     ])
     self.mock.get_source_dir_path.return_value = '/src'
@@ -656,6 +660,8 @@ class V8BuilderTest(helpers.ExtendedTestCase):
   def test_install_deps(self):
     """Test install_deps."""
     self.builder.install_deps()
+    self.mock.install_build_deps.assert_called_once_with(
+        '/src', include_lib32=False)
     self.mock.execute.assert_called_once_with(
         'python', 'tools/clang/scripts/update.py', '/src')
 
@@ -746,7 +752,7 @@ class ChromiumBuilder32BitTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.install_build_deps_32bit',
+        'clusterfuzz.binary_providers.install_build_deps',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.install_deps',
     ])
@@ -757,7 +763,7 @@ class ChromiumBuilder32BitTest(helpers.ExtendedTestCase):
   def test_install_deps(self):
     """Test the install_deps method."""
     self.builder.install_deps()
-    self.mock.install_build_deps_32bit.assert_called_once_with('/chrome/src')
+    self.assertTrue(self.builder.include_lib32)
     self.mock.install_deps.assert_called_once_with(self.builder)
 
 
@@ -766,7 +772,7 @@ class V8Builder32BitTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.binary_providers.install_build_deps_32bit',
+        'clusterfuzz.binary_providers.install_build_deps',
         'clusterfuzz.binary_providers.V8Builder.install_deps',
         'clusterfuzz.binary_providers.V8Builder.get_source_dir_path'
     ])
@@ -777,7 +783,7 @@ class V8Builder32BitTest(helpers.ExtendedTestCase):
   def test_install_deps(self):
     """Test the install_deps method."""
     self.builder.install_deps()
-    self.mock.install_build_deps_32bit.assert_called_once_with('/chrome/src')
+    self.assertTrue(self.builder.include_lib32)
     self.mock.install_deps.assert_called_once_with(self.builder)
 
 
@@ -908,17 +914,17 @@ class SetupDebugSymbolIfNeededTest(helpers.ExtendedTestCase):
             {'is_debug': 'false'}, 'MSAN', True))
 
 
-class InstallBuildDeps32bitTest(helpers.ExtendedTestCase):
-  """Tests install_build_deps_32bit."""
+class InstallBuildDepsTest(helpers.ExtendedTestCase):
+  """Tests install_build_deps."""
 
   def setUp(self):
     helpers.patch(self, ['clusterfuzz.common.execute'])
 
-  def test_build(self):
+  def test_build_32bit(self):
     """Test run."""
-    binary_providers.install_build_deps_32bit('/source')
+    binary_providers.install_build_deps('/source', include_lib32=True)
     self.mock.execute.assert_called_once_with(
-        'build/install-build-deps.sh', '--lib32 --syms --no-prompt',
+        'sudo', 'build/install-build-deps.sh --syms --no-prompt --lib32',
         '/source', stdout_transformer=mock.ANY, preexec_fn=None,
         redirect_stderr_to_stdout=True)
     self.assertIsInstance(
@@ -1102,9 +1108,11 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.get_clank_sha',
+        'clusterfuzz.common.execute',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_build_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_binary_name',
+        'clusterfuzz.binary_providers.ChromiumBuilder.install_deps',
     ])
     self.builder = binary_providers.ClankiumBuilder(
         libs.make_testcase(revision='1234'),
@@ -1151,6 +1159,15 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
             'source', 'third_party', 'llvm-build',
             'Release+Asserts', 'lib', 'clang', '6.0.0', 'lib', 'linux'),
         self.builder.get_android_libclang_dir_path())
+
+  def test_install_deps(self):
+    """Tests install_deps.sh."""
+    self.builder.install_deps()
+    self.mock.install_deps.assert_called_once_with(self.builder)
+    self.mock.execute.assert_called_once_with(
+        'sudo', 'build/install-build-deps-android.sh',
+        self.builder.get_source_dir_path(), stdout_transformer=mock.ANY,
+        preexec_fn=None, redirect_stderr_to_stdout=True)
 
 
 class GetClankShaTest(helpers.ExtendedTestCase):

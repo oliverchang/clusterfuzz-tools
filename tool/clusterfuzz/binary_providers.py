@@ -135,13 +135,17 @@ def setup_debug_symbol_if_needed(gn_args, sanitizer, enable_debug):
   return gn_args
 
 
-def install_build_deps_32bit(source_dir):
+def install_build_deps(source_dir, include_lib32):
   """Run install-build-deps.sh."""
+  flags = '--syms --no-prompt'
+  if include_lib32:
+    flags += ' --lib32'
+
   # preexec_fn is required to be None. Otherwise, it'd fail with:
   # 'sudo: no tty present and no askpass program specified'.
   common.execute(
-      'build/install-build-deps.sh', '--lib32 --syms --no-prompt',
-      source_dir, stdout_transformer=output_transformer.Identity(),
+      'sudo', 'build/install-build-deps.sh %s' % flags, source_dir,
+      stdout_transformer=output_transformer.Identity(),
       preexec_fn=None, redirect_stderr_to_stdout=True)
 
 
@@ -543,6 +547,7 @@ class ChromiumBuilder(GenericBuilder):
         testcase=testcase,
         definition=definition,
         options=options)
+    self.include_lib32 = False
 
   @common.memoize
   def get_git_sha(self):
@@ -553,6 +558,8 @@ class ChromiumBuilder(GenericBuilder):
     """Run all commands that only need to run once. This means the commands
       within this method are not required to be executed in a subsequential
       run."""
+    install_build_deps(
+        self.get_source_dir_path(), include_lib32=self.include_lib32)
     common.execute('python', 'tools/clang/scripts/update.py',
                    self.get_source_dir_path())
 
@@ -585,6 +592,7 @@ class V8Builder(GenericBuilder):
         testcase=testcase,
         definition=definition,
         options=options)
+    self.include_lib32 = False
 
   @common.memoize
   def get_git_sha(self):
@@ -595,6 +603,8 @@ class V8Builder(GenericBuilder):
     """Run all commands that only need to run once. This means the commands
       within this method are not required to be executed in a subsequential
       run."""
+    install_build_deps(
+        self.get_source_dir_path(), include_lib32=False)
     common.execute('python', 'tools/clang/scripts/update.py',
                    self.get_source_dir_path())
 
@@ -640,19 +650,23 @@ class MsanV8Builder(V8Builder):
 class ChromiumBuilder32Bit(ChromiumBuilder):
   """Build a 32-bit chromium build."""
 
-  def install_deps(self):
-    """Install other deps."""
-    super(ChromiumBuilder32Bit, self).install_deps()
-    install_build_deps_32bit(self.get_source_dir_path())
+  def __init__(self, testcase, definition, options):
+    super(ChromiumBuilder32Bit, self).__init__(
+        testcase=testcase,
+        definition=definition,
+        options=options)
+    self.include_lib32 = True
 
 
 class V8Builder32Bit(V8Builder):
   """Build a 32-bit V8 build."""
 
-  def install_deps(self):
-    """Install other deps."""
-    super(V8Builder32Bit, self).install_deps()
-    install_build_deps_32bit(self.get_source_dir_path())
+  def __init__(self, testcase, definition, options):
+    super(V8Builder32Bit, self).__init__(
+        testcase=testcase,
+        definition=definition,
+        options=options)
+    self.include_lib32 = True
 
 
 # TODO(tanin): Refactor to use
@@ -676,6 +690,18 @@ class ClankiumBuilder(ChromiumBuilder):
   def get_binary_path(self):
     """Return the binary path."""
     return '%s/apks/%s' % (self.get_build_dir_path(), self.get_binary_name())
+
+  def install_deps(self):
+    """Install deps."""
+    super(ClankiumBuilder, self).install_deps()
+
+    # preexec_fn is required to be None. Otherwise, it'd fail with:
+    # 'sudo: no tty present and no askpass program specified'.
+    common.execute(
+        'sudo', 'build/install-build-deps-android.sh',
+        self.get_source_dir_path(),
+        stdout_transformer=output_transformer.Identity(),
+        preexec_fn=None, redirect_stderr_to_stdout=True)
 
   def get_android_libclang_dir_path(self):
     """Get the dir of libclang_rt.asan-*."""
