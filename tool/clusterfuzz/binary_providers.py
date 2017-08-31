@@ -143,8 +143,10 @@ def install_build_deps(source_dir, include_lib32):
 
   # preexec_fn is required to be None. Otherwise, it'd fail with:
   # 'sudo: no tty present and no askpass program specified'.
+  # See why PATH is added:
+  # https://github.com/google/clusterfuzz-tools/issues/497
   common.execute(
-      'sudo', 'build/install-build-deps.sh %s' % flags, source_dir,
+      'sudo', 'PATH=$PATH build/install-build-deps.sh %s' % flags, source_dir,
       stdout_transformer=output_transformer.Identity(),
       preexec_fn=None, redirect_stderr_to_stdout=True)
 
@@ -697,8 +699,10 @@ class ClankiumBuilder(ChromiumBuilder):
 
     # preexec_fn is required to be None. Otherwise, it'd fail with:
     # 'sudo: no tty present and no askpass program specified'.
+    # See why PATH is added:
+    # https://github.com/google/clusterfuzz-tools/issues/497
     common.execute(
-        'sudo', 'build/install-build-deps-android.sh',
+        'sudo', 'PATH=$PATH build/install-build-deps-android.sh',
         self.get_source_dir_path(),
         stdout_transformer=output_transformer.Identity(),
         preexec_fn=None, redirect_stderr_to_stdout=True)

@@ -924,7 +924,8 @@ class InstallBuildDepsTest(helpers.ExtendedTestCase):
     """Test run."""
     binary_providers.install_build_deps('/source', include_lib32=True)
     self.mock.execute.assert_called_once_with(
-        'sudo', 'build/install-build-deps.sh --syms --no-prompt --lib32',
+        'sudo',
+        'PATH=$PATH build/install-build-deps.sh --syms --no-prompt --lib32',
         '/source', stdout_transformer=mock.ANY, preexec_fn=None,
         redirect_stderr_to_stdout=True)
     self.assertIsInstance(
@@ -1165,7 +1166,7 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
     self.builder.install_deps()
     self.mock.install_deps.assert_called_once_with(self.builder)
     self.mock.execute.assert_called_once_with(
-        'sudo', 'build/install-build-deps-android.sh',
+        'sudo', 'PATH=$PATH build/install-build-deps-android.sh',
         self.builder.get_source_dir_path(), stdout_transformer=mock.ANY,
         preexec_fn=None, redirect_stderr_to_stdout=True)
 
