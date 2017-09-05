@@ -149,6 +149,7 @@ def parse_job_definition(job_definition, presets):
 def build_definition(job_definition, presets):
   """Converts a job definition hash into a binary definition."""
 
+  # TODO(tanin): use the full class name in the YAML and eliminate this dict.
   builders = {
       'CfiChromium': binary_providers.CfiChromiumBuilder,
       'Chromium_32': binary_providers.ChromiumBuilder32Bit,
@@ -156,6 +157,7 @@ def build_definition(job_definition, presets):
       'Clankium': binary_providers.ClankiumBuilder,
       'MsanChromium': binary_providers.MsanChromiumBuilder,
       'MsanV8': binary_providers.MsanV8Builder,
+      'CfiV8': binary_providers.CfiV8Builder,
       'Pdfium': binary_providers.PdfiumBuilder,
       'V8': binary_providers.V8Builder,
       'V8_32': binary_providers.V8Builder32Bit,

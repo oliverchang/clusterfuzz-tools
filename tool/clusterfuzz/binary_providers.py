@@ -61,15 +61,16 @@ def sha_from_revision(revision, repo):
   return json.loads(response.body)['git_sha']
 
 
-def get_pdfium_sha(chromium_sha):
+def get_third_party_sha(chromium_sha, key):
   """Gets the correct Pdfium sha using the Chromium sha."""
   response = urlfetch.fetch(
       ('https://chromium.googlesource.com/chromium/src.git/+/%s/DEPS?'
        'format=TEXT' % chromium_sha))
   body = base64.b64decode(response.body)
-  sha_line = [l for l in body.split('\n') if "'pdfium_revision':" in l][0]
+
+  sha_line = [l for l in body.split('\n') if "'%s':" % key in l][0]
   sha_line = sha_line.translate(None, string.punctuation).replace(
-      'pdfiumrevision', '')
+      key.translate(None, string.punctuation), '')
   return sha_line.strip()
 
 
@@ -399,6 +400,7 @@ class GenericBuilder(BinaryProvider):
         options=options)
     # These attributes don't need computation. Therefore, they are not methods.
     self.extra_gn_args = {}
+    self.include_lib32 = False
 
   @common.memoize
   def get_target_names(self):
@@ -538,7 +540,7 @@ class PdfiumBuilder(GenericBuilder):
   def get_git_sha(self):
     """Return git sha."""
     chromium_sha = sha_from_revision(self.testcase.revision, 'chromium/src')
-    return get_pdfium_sha(chromium_sha)
+    return get_third_party_sha(chromium_sha, 'pdfium_revision')
 
 
 class ChromiumBuilder(GenericBuilder):
@@ -549,7 +551,6 @@ class ChromiumBuilder(GenericBuilder):
         testcase=testcase,
         definition=definition,
         options=options)
-    self.include_lib32 = False
 
   @common.memoize
   def get_git_sha(self):
@@ -594,19 +595,25 @@ class V8Builder(GenericBuilder):
         testcase=testcase,
         definition=definition,
         options=options)
-    self.include_lib32 = False
 
   @common.memoize
   def get_git_sha(self):
     """Return git sha."""
-    return sha_from_revision(self.testcase.revision, 'v8/v8')
+    # TODO(tanin): We've migrated all v8 jobs to standalone binaries.
+    # All the revisions will be v8's revisions. We can remove this condition
+    # and its logic on 6 Dec 2017.
+    if self.testcase.revision > 400000:
+      chromium_sha = sha_from_revision(self.testcase.revision, 'chromium/src')
+      return get_third_party_sha(chromium_sha, 'v8_revision')
+    else:
+      return sha_from_revision(self.testcase.revision, 'v8/v8')
 
   def install_deps(self):
     """Run all commands that only need to run once. This means the commands
       within this method are not required to be executed in a subsequential
       run."""
     install_build_deps(
-        self.get_source_dir_path(), include_lib32=False)
+        self.get_source_dir_path(), include_lib32=self.include_lib32)
     common.execute('python', 'tools/clang/scripts/update.py',
                    self.get_source_dir_path())
 
@@ -616,12 +623,12 @@ class V8Builder(GenericBuilder):
     common.execute('gclient', 'runhooks', self.get_source_dir_path())
 
 
-class CfiChromiumBuilder(ChromiumBuilder):
-  """Build a CFI chromium build."""
+class CfiMixin(object):
+  """Mix CFI settings."""
 
   def install_deps(self):
     """Run download_gold_plugin.py."""
-    super(CfiChromiumBuilder, self).install_deps()
+    super(CfiMixin, self).install_deps()
 
     if os.path.exists(os.path.join(
         self.get_source_dir_path(), 'build/download_gold_plugin.py')):
@@ -629,8 +636,8 @@ class CfiChromiumBuilder(ChromiumBuilder):
           'build/download_gold_plugin.py', '', self.get_source_dir_path())
 
 
-class MsanChromiumBuilder(ChromiumBuilder):
-  """Build a MSAN chromium build."""
+class MsanMixin(object):
+  """Mix Msan settings."""
 
   def gclient_runhooks(self):
     """Run gclient runhooks."""
@@ -639,42 +646,43 @@ class MsanChromiumBuilder(ChromiumBuilder):
         self.get_gn_args().get('msan_track_origins'))
 
 
-class MsanV8Builder(V8Builder):
-  """Build a MSAN V8 build."""
+class Lib32Mixin(object):
+  """Mix lib32 setting."""
 
-  def gclient_runhooks(self):
-    """Run gclient runhooks."""
-    gclient_runhooks_msan(
-        self.get_source_dir_path(),
-        self.get_gn_args().get('msan_track_origins'))
+  def __init__(self, testcase, definition, options):
+    super(Lib32Mixin, self).__init__(
+        testcase=testcase,
+        definition=definition,
+        options=options)
+    self.include_lib32 = True
 
 
-class ChromiumBuilder32Bit(ChromiumBuilder):
+class ChromiumBuilder32Bit(Lib32Mixin, ChromiumBuilder):
   """Build a 32-bit chromium build."""
 
-  def __init__(self, testcase, definition, options):
-    super(ChromiumBuilder32Bit, self).__init__(
-        testcase=testcase,
-        definition=definition,
-        options=options)
-    self.include_lib32 = True
 
-
-class V8Builder32Bit(V8Builder):
+class V8Builder32Bit(Lib32Mixin, V8Builder):
   """Build a 32-bit V8 build."""
 
-  def __init__(self, testcase, definition, options):
-    super(V8Builder32Bit, self).__init__(
-        testcase=testcase,
-        definition=definition,
-        options=options)
-    self.include_lib32 = True
 
-
-# TODO(tanin): Refactor to use
-# clusterfuzz.commandsreproduce.create_builder_class.
-class LibfuzzerMsanBuilder(MsanChromiumBuilder, LibfuzzerAndAflBuilder):
+class LibfuzzerMsanBuilder(MsanMixin, LibfuzzerAndAflBuilder):
   """Build libfuzzer_chrome_msan."""
+
+
+class MsanV8Builder(MsanMixin, V8Builder):
+  """Build a MSAN V8 build."""
+
+
+class MsanChromiumBuilder(MsanMixin, ChromiumBuilder):
+  """Build a MSAN Chromium build."""
+
+
+class CfiV8Builder(CfiMixin, V8Builder):
+  """Build a CFI V8 build."""
+
+
+class CfiChromiumBuilder(CfiMixin, ChromiumBuilder):
+  """Build a CFI Chromium build."""
 
 
 class ClankiumBuilder(ChromiumBuilder):

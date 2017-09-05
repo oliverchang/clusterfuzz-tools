@@ -61,8 +61,8 @@ class ShaFromRevisionTest(helpers.ExtendedTestCase):
     self.assertEqual(result, '1a2s3d4f')
 
 
-class GetPdfiumShaTest(helpers.ExtendedTestCase):
-  """Tests the get_pdfium_sha method."""
+class GetThirdPartyShaTest(helpers.ExtendedTestCase):
+  """Tests the get_third_party_sha method."""
 
   def setUp(self):
     helpers.patch(self, ['urlfetch.fetch'])
@@ -74,7 +74,8 @@ class GetPdfiumShaTest(helpers.ExtendedTestCase):
   def test_decode_pdfium_sha(self):
     """Tests if the method correctly grabs the sha from the b64 download."""
 
-    result = binary_providers.get_pdfium_sha('chrome_sha')
+    result = binary_providers.get_third_party_sha(
+        'chrome_sha', 'pdfium_revision')
     self.assert_exact_calls(self.mock.fetch, [mock.call(
         ('https://chromium.googlesource.com/chromium/src.git/+/chrome_sha'
          '/DEPS?format=TEXT'))])
@@ -583,7 +584,7 @@ class PdfiumBuilderGetGitShaTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.sha_from_revision',
-        'clusterfuzz.binary_providers.get_pdfium_sha'])
+        'clusterfuzz.binary_providers.get_third_party_sha'])
     self.builder = binary_providers.PdfiumBuilder(
         libs.make_testcase(revision=1234), libs.make_definition(),
         libs.make_options())
@@ -591,11 +592,12 @@ class PdfiumBuilderGetGitShaTest(helpers.ExtendedTestCase):
   def test_get_git_sha(self):
     """Test get_git_sha."""
     self.mock.sha_from_revision.return_value = 'sha'
-    self.mock.get_pdfium_sha.return_value = 'pdfium_sha'
+    self.mock.get_third_party_sha.return_value = 'pdfium_sha'
 
     self.assertEqual('pdfium_sha', self.builder.get_git_sha())
     self.mock.sha_from_revision.assert_called_once_with(1234, 'chromium/src')
-    self.mock.get_pdfium_sha.assert_called_once_with('sha')
+    self.mock.get_third_party_sha.assert_called_once_with(
+        'sha', 'pdfium_revision')
 
 
 class ChromiumBuilderTest(helpers.ExtendedTestCase):
@@ -643,6 +645,7 @@ class V8BuilderTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.GenericBuilder.get_source_dir_path',
         'clusterfuzz.binary_providers.sha_from_revision',
+        'clusterfuzz.binary_providers.get_third_party_sha',
         'clusterfuzz.binary_providers.install_build_deps',
         'clusterfuzz.common.execute',
     ])
@@ -651,11 +654,20 @@ class V8BuilderTest(helpers.ExtendedTestCase):
         libs.make_testcase(revision=1234), libs.make_definition(),
         libs.make_options())
 
-  def test_get_git_sha(self):
-    """Test get_git_sha."""
+  def test_get_git_sha_standalone(self):
+    """Test get_git_sha for standalone."""
     self.mock.sha_from_revision.return_value = 'sha'
     self.assertEqual('sha', self.builder.get_git_sha())
     self.mock.sha_from_revision.assert_called_once_with(1234, 'v8/v8')
+
+  def test_get_git_sha_from_chromium(self):
+    """Test get_git_sha for standalone."""
+    self.builder.testcase.revision = 400001
+    self.mock.sha_from_revision.return_value = 'sha'
+    self.mock.get_third_party_sha.return_value = 'third_party_sha'
+    self.assertEqual('third_party_sha', self.builder.get_git_sha())
+    self.mock.sha_from_revision.assert_called_once_with(400001, 'chromium/src')
+    self.mock.get_third_party_sha.assert_called_once_with('sha', 'v8_revision')
 
   def test_install_deps(self):
     """Test install_deps."""
@@ -671,8 +683,8 @@ class V8BuilderTest(helpers.ExtendedTestCase):
     self.mock.execute.assert_called_once_with('gclient', 'runhooks', '/src')
 
 
-class CfiChromiumBuilderTest(helpers.ExtendedTestCase):
-  """Tests CfiChromiumBuilder."""
+class CfiMixinTest(helpers.ExtendedTestCase):
+  """Tests CfiMixin."""
 
   def setUp(self):
     helpers.patch(self, [
@@ -706,13 +718,14 @@ class CfiChromiumBuilderTest(helpers.ExtendedTestCase):
     self.mock.install_deps.assert_called_once_with(self.builder)
 
 
-class MsanChromiumBuilderTest(helpers.ExtendedTestCase):
-  """Tests MsanChromiumBuilder."""
+class MsanMixinTest(helpers.ExtendedTestCase):
+  """Tests MsanMixin."""
 
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.binary_providers.ChromiumBuilder.get_gn_args',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_source_dir_path',
+        'clusterfuzz.binary_providers.ChromiumBuilder.gclient_runhooks',
         'clusterfuzz.binary_providers.gclient_runhooks_msan',
     ])
     self.builder = binary_providers.MsanChromiumBuilder(
@@ -724,30 +737,11 @@ class MsanChromiumBuilderTest(helpers.ExtendedTestCase):
     self.mock.get_source_dir_path.return_value = '/chrome/src'
     self.builder.gclient_runhooks()
     self.mock.gclient_runhooks_msan.assert_called_once_with('/chrome/src', '1')
+    # It's important that the super class's gclient_runhooks isn't invoked.
+    self.assertEqual(0, self.mock.gclient_runhooks.call_count)
 
 
-class MsanV8BuilderTest(helpers.ExtendedTestCase):
-  """Tests MsanV8Builder."""
-
-  def setUp(self):
-    helpers.patch(self, [
-        'clusterfuzz.binary_providers.V8Builder.get_gn_args',
-        'clusterfuzz.binary_providers.V8Builder.get_source_dir_path',
-        'clusterfuzz.binary_providers.gclient_runhooks_msan',
-    ])
-    self.builder = binary_providers.MsanV8Builder(
-        libs.make_testcase(), libs.make_definition(), libs.make_options())
-
-  def test_gclient_runhooks(self):
-    """Test gclient runhooks."""
-    self.mock.get_gn_args.return_value = {'msan_track_origins': '4'}
-    self.mock.get_source_dir_path.return_value = '/chrome/src'
-    self.builder.gclient_runhooks()
-    self.mock.gclient_runhooks_msan.assert_called_once_with(
-        '/chrome/src', '4')
-
-
-class ChromiumBuilder32BitTest(helpers.ExtendedTestCase):
+class Lib32MixinTest(helpers.ExtendedTestCase):
   """Tests ChromiumBuilder32Bit."""
 
   def setUp(self):
@@ -758,26 +752,6 @@ class ChromiumBuilder32BitTest(helpers.ExtendedTestCase):
     ])
     self.mock.get_source_dir_path.return_value = '/chrome/src'
     self.builder = binary_providers.ChromiumBuilder32Bit(
-        libs.make_testcase(), libs.make_definition(), libs.make_options())
-
-  def test_install_deps(self):
-    """Test the install_deps method."""
-    self.builder.install_deps()
-    self.assertTrue(self.builder.include_lib32)
-    self.mock.install_deps.assert_called_once_with(self.builder)
-
-
-class V8Builder32BitTest(helpers.ExtendedTestCase):
-  """Tests V8Builder32Bit."""
-
-  def setUp(self):
-    helpers.patch(self, [
-        'clusterfuzz.binary_providers.install_build_deps',
-        'clusterfuzz.binary_providers.V8Builder.install_deps',
-        'clusterfuzz.binary_providers.V8Builder.get_source_dir_path'
-    ])
-    self.mock.get_source_dir_path.return_value = '/chrome/src'
-    self.builder = binary_providers.V8Builder32Bit(
         libs.make_testcase(), libs.make_definition(), libs.make_options())
 
   def test_install_deps(self):
