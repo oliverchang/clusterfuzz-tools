@@ -70,6 +70,7 @@ standalone:
         linux_msan_d8: { preset: d8_standalone, builder: MsanV8, sanitizer: MSAN }
         linux_msan_pdfium: { preset: pdfium_standalone, sanitizer: MSAN }
         linux_ubsan_pdfium: { preset: pdfium_standalone, sanitizer: UBSAN }
+        linux_ubsan_vptr_d8: { preset: d8_standalone, sanitizer: UBSAN }
         linux_v8_d8_tot: { preset: linux_asan_d8_standalone }
 chromium:
         afl_chrome_asan: { preset: afl, sanitizer: ASAN }
@@ -94,7 +95,6 @@ chromium:
         linux_lsan_chrome_mp: { preset: linux_chromium, sanitizer: LSAN }
         linux_msan_chrome: { preset: linux_chromium, builder: MsanChromium, sanitizer: MSAN }
         linux_msan_content_shell_drt: { preset: linux_content_shell, builder: MsanChromium, sanitizer: MSAN }
-        linux_msan_d8: { preset: linux_d8_chromium, builder: MsanChromium, sanitizer: MSAN }
         linux_msan_filter_fuzz_stub: { preset: linux_filter_stub, builder: MsanChromium, sanitizer: MSAN }
         linux_msan_pdfium: { preset: pdfium_chromium, builder: MsanChromium, sanitizer: MSAN }
         linux_tsan_chrome_mp: { preset: linux_chromium, sanitizer: TSAN }
@@ -102,7 +102,6 @@ chromium:
         linux_ubsan_pdfium: { preset: pdfium_chromium, sanitizer: UBSAN }
         linux_ubsan_vptr_chrome: { preset: linux_chromium, sanitizer: UBSAN }
         linux_ubsan_vptr_content_shell_drt: { preset: linux_content_shell, sanitizer: UBSAN }
-        linux_ubsan_vptr_d8: { preset: linux_d8_chromium, sanitizer: UBSAN }
         android_asan_chrome_latest: { preset: android, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/revisions/%s", binary: Chrome.apk, targets: [chrome_apk] }
         android_asan_chrome_x86: { preset: android, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/x86/revisions/%s", binary: Chrome.apk, targets: [chrome_apk] }
         android_asan_webview_shell: { preset: android, reproducer: AndroidWebView, sanitizer: ASAN, revision_url: "gs://chrome-test-builds/android/revisions/%s", binary: SystemWebViewShell.apk, targets: [system_webview_shell_apk, system_webview_google_apk] }
