@@ -662,6 +662,7 @@ class AndroidChromeReproducer(BaseReproducer):
 
   def install(self):
     """Instal chrome on Android."""
+    android.uninstall(self.testcase.android_package_name)
     android.install(self.binary_path)
 
   def pre_build_steps(self):
@@ -731,7 +732,8 @@ class AndroidWebViewReproducer(AndroidChromeReproducer):
     android.adb_shell('stop')
     android.adb_shell('rm -rf %s' % ' '.join(SYSTEM_WEBVIEW_DIRS))
     android.adb_shell('start')
-    android.adb('uninstall %s' % SYSTEM_WEBVIEW_PACKAGE)
+    android.uninstall(SYSTEM_WEBVIEW_PACKAGE)
+    android.uninstall(self.testcase.android_package_name)
     android.install(os.path.join(
         os.path.dirname(self.binary_path), SYSTEM_WEBVIEW_APK))
     android.install(self.binary_path)

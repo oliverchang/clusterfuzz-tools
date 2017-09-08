@@ -439,6 +439,22 @@ class FilterLogTest(helpers.ExtendedTestCase):
             'F/DEBUG   (  372):     #21 pc 0ace0211  <unknown>\n'))
 
 
+class UninstallTest(helpers.ExtendedTestCase):
+  """Tests android.install."""
+
+  def setUp(self):
+    helpers.patch(self, ['clusterfuzz.android.adb'])
+
+  def test_succeed(self):
+    """Tests uninstall successfully."""
+    self.mock.adb.return_value = (0, 'success')
+    self.assertEqual((0, 'success'), android.uninstall('package'))
+
+    self.mock.adb.assert_called_once_with(
+        'uninstall package', redirect_stderr_to_stdout=True,
+        exit_on_error=False)
+
+
 class InstallTest(helpers.ExtendedTestCase):
   """Tests android.install."""
 

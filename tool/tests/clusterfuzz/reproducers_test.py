@@ -32,7 +32,8 @@ def create_reproducer(klass):
   binary_provider.get_binary_path.return_value = '/fake/build_dir/test_binary'
   binary_provider.get_build_dir_path.return_value = '/fake/build_dir'
   testcase = mock.Mock(gestures=None, stacktrace_lines=[{'content': 'line'}],
-                       job_type='job_type', reproduction_args='--original')
+                       job_type='job_type', reproduction_args='--original',
+                       android_package_name='package')
   testcase.get_testcase_path.return_value = '/fake/testcase_dir/testcase'
   reproducer = klass(
       definition=mock.Mock(),
@@ -1070,6 +1071,7 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
         'clusterfuzz.android.ensure_asan',
         'clusterfuzz.android.ensure_root_and_remount',
         'clusterfuzz.android.install',
+        'clusterfuzz.android.uninstall',
         'clusterfuzz.android.write_content',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_device_id',
         'clusterfuzz.reproducers.AndroidChromeReproducer.get_testcase_path',
@@ -1091,6 +1093,8 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
         android_libclang_dir_path=(
             self.reproducer.binary_provider.get_android_libclang_dir_path()),
         device_id='device')
+    self.mock.uninstall.assert_called_once_with(
+        self.reproducer.testcase.android_package_name)
     self.mock.install.assert_called_once_with(self.reproducer.binary_path)
     self.assert_exact_calls(self.mock.write_content, [
         mock.call('test-file', 'content'),
@@ -1171,7 +1175,8 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.android.adb',
         'clusterfuzz.android.adb_shell',
-        'clusterfuzz.android.install'
+        'clusterfuzz.android.install',
+        'clusterfuzz.android.uninstall'
     ])
 
   def test_install(self):
@@ -1187,8 +1192,9 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
         mock.call('rm -rf %s' % ' '.join(reproducers.SYSTEM_WEBVIEW_DIRS)),
         mock.call('start')
     ])
-    self.assert_exact_calls(self.mock.adb, [
-        mock.call('uninstall %s' % reproducers.SYSTEM_WEBVIEW_PACKAGE)
+    self.assert_exact_calls(self.mock.uninstall, [
+        mock.call(reproducers.SYSTEM_WEBVIEW_PACKAGE),
+        mock.call(self.reproducer.testcase.android_package_name)
     ])
     self.assert_exact_calls(self.mock.install, [
         mock.call(os.path.join(

@@ -33,6 +33,13 @@ def adb_shell(command, **kwargs):
   return adb('shell "%s"' % escaped_command, **kwargs)
 
 
+def uninstall(package_name):
+  """Uninstall the package_name."""
+  return adb(
+      'uninstall %s' % package_name, redirect_stderr_to_stdout=True,
+      exit_on_error=False)
+
+
 def install(apk_path):
   """Install an apk. We need this method to detect failure."""
   returncode, output = adb(
