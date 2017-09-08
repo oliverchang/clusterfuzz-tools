@@ -61,7 +61,7 @@ class InitTest(helpers.ExtendedTestCase):
     """Test init."""
     error.MinimizationNotFinishedError()
     error.SanitizerNotProvidedError()
-    error.ClusterFuzzError(500, 'resp')
+    error.ClusterFuzzError(500, 'resp', 'identity')
     error.PermissionsTooPermissiveError('filename', 'perm')
     error.GomaNotInstalledError()
     error.JobTypeNotSupportedError('job')
@@ -74,7 +74,7 @@ class InitTest(helpers.ExtendedTestCase):
     error.KillProcessFailedError('cmd', 123)
     error.UserRespondingNoError('question')
     error.InvalidTestcaseIdError('123456')
-    error.UnauthorizedError('123456')
+    error.UnauthorizedError('123456', 'identity')
     error.DifferentStacktraceError(
         10, [Signature('type', ['a', 'b'], 'output')])
     error.GdbNotSupportedOnAndroidError()

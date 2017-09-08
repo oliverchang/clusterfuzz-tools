@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import time
 import getpass
@@ -37,13 +38,11 @@ logger = logging.getLogger('clusterfuzz')
 
 def get_session_id():
   """For easier testing/mocking."""
-
   return SESSION_ID
 
 
 def send_log(params, stacktrace=None):
   """Joins the params dict with info like user id and then sends logs."""
-
   scopes = ['https://www.googleapis.com/auth/logging.write']
   filename = common.get_resource(
       0640, 'resources', 'clusterfuzz-tools-logging.json')
@@ -98,18 +97,16 @@ def send_start(params):
 
 def send_success(params):
   """Sends a success message to show the reproduction completed."""
-  params = params.copy()
   params['success'] = True
   send_log(params)
 
 
 def send_failure(exception, stacktrace, params):
   """Sends a log with success set to False."""
-  params = params.copy()
   params['exception'] = exception.__class__.__name__
 
   if isinstance(exception, error.ExpectedException) and exception.extras:
-    params['extras'] = exception.extras
+    params['exception_extras'] = exception.extras
 
   params['success'] = False
   send_log(params, stacktrace)
@@ -118,21 +115,28 @@ def send_failure(exception, stacktrace, params):
 def log(func):
   """Log to stackdriver at the start & end of a command."""
   @functools.wraps(func)
-  def wrapped(*args, **params):
+  def wrapped(*args, **original_params):
+    """Wrapper."""
     if args:
       raise Exception(
           'Invoking %s with positional arguments is not allowed.' %
           func.__name__)
 
-    log_params = params.copy()
+    extra_log_params = {}
+
+    params = original_params.copy()
+    params['extra_log_params'] = extra_log_params
+
+    log_params = original_params.copy()
     log_params['command'] = func.__module__.split('.')[-1]
+    log_params['extras'] = extra_log_params
     try:
       try:
-        send_start(log_params)
+        send_start(copy.deepcopy(log_params))
         func(**params)
-        send_success(log_params)
+        send_success(copy.deepcopy(log_params))
       except BaseException as e:
-        send_failure(e, traceback.format_exc(), log_params)
+        send_failure(e, traceback.format_exc(), copy.deepcopy(log_params))
         raise
     except KeyboardInterrupt as e:
       print

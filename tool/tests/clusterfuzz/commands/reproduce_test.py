@@ -55,7 +55,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
         'clusterfuzz.common.ensure_important_dirs',
         'clusterfuzz.commands.reproduce.create_builder_class',
         'clusterfuzz.commands.reproduce.get_definition',
-        'clusterfuzz.commands.reproduce.get_testcase',
+        'clusterfuzz.commands.reproduce.get_testcase_and_identity',
         'clusterfuzz.testcase.Testcase.get_testcase_path',
     ])
     self.builder = mock.Mock(symbolizer_path='/path/to/symbolizer')
@@ -70,9 +70,18 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.testcase = mock.Mock(
         id='1234', build_url='chrome_build_url', revision=123456,
         job_type='linux_asan_d8', reproducible=True,
-        reproduction_args='--always-opt')
-    self.mock.get_testcase.return_value = self.testcase
-    self.options = libs.make_options(testcase_id=str(self.testcase.id))
+        reproduction_args='--always-opt', platform='linux')
+    self.mock.get_testcase_and_identity.return_value = (
+        self.testcase, 'identity@something')
+    self.options = libs.make_options(
+        testcase_id=str(self.testcase.id),
+        extra_log_params={
+            'identity': 'identity@something',
+            'job_type': self.testcase.job_type,
+            'platform': self.testcase.platform,
+            'reproducible': self.testcase.reproducible
+        }
+    )
 
   def test_grab_data_with_download(self):
     """Ensures all method calls are made correctly when downloading."""
@@ -85,7 +94,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'download'
     reproduce.execute(**vars(self.options))
 
-    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
+    self.mock.get_testcase_and_identity.assert_called_once_with(
+        self.testcase.id)
     self.builder.assert_called_once_with(
         testcase=self.testcase, definition=self.definition,
         options=self.options)
@@ -103,7 +113,8 @@ class ExecuteTest(helpers.ExtendedTestCase):
     self.options.build = 'standalone'
     reproduce.execute(**vars(self.options))
 
-    self.mock.get_testcase.assert_called_once_with(self.testcase.id)
+    self.mock.get_testcase_and_identity.assert_called_once_with(
+        self.testcase.id)
     self.builder.assert_called_once_with(
         testcase=self.testcase,
         definition=self.definition,
@@ -144,7 +155,9 @@ class SendRequestTest(helpers.ExtendedTestCase):
   def test_correct_stored_authorization(self):
     """Ensures that the testcase info is returned when stored auth is correct"""
 
-    response_headers = {'x-clusterfuzz-authorization': 'Bearer 12345'}
+    response_headers = {
+        reproduce.CLUSTERFUZZ_AUTH_HEADER: 'Bearer 12345',
+        reproduce.CLUSTERFUZZ_AUTH_IDENTITY: 'identity@something'}
     response_dict = {
         'id': '12345',
         'crash_type': 'Bad Crash',
@@ -172,11 +185,14 @@ class SendRequestTest(helpers.ExtendedTestCase):
         data='data',
         allow_redirects=True)] * 3)
     self.assertEqual(200, response.status_code)
+    self.assertEqual(
+        'identity@something',
+        response.headers[reproduce.CLUSTERFUZZ_AUTH_IDENTITY])
 
   def test_incorrect_stored_header(self):
     """Tests when the header is stored, but has expired/is invalid."""
 
-    response_headers = {'x-clusterfuzz-authorization': 'Bearer 12345'}
+    response_headers = {reproduce.CLUSTERFUZZ_AUTH_HEADER: 'Bearer 12345'}
     response_dict = {
         'id': '12345',
         'crash_type': 'Bad Crash',
@@ -215,7 +231,7 @@ class SendRequestTest(helpers.ExtendedTestCase):
   def test_correct_verification_auth(self):
     """Tests grabbing testcase info when the local header is invalid."""
 
-    response_headers = {'x-clusterfuzz-authorization': 'Bearer 12345'}
+    response_headers = {reproduce.CLUSTERFUZZ_AUTH_HEADER: 'Bearer 12345'}
     response_dict = {
         'id': '12345',
         'crash_type': 'Bad Crash',
@@ -245,7 +261,9 @@ class SendRequestTest(helpers.ExtendedTestCase):
   def test_incorrect_authorization(self):
     """Ensures that when auth is incorrect the right exception is thrown"""
 
-    response_headers = {'x-clusterfuzz-authorization': 'Bearer 12345'}
+    response_headers = {
+        reproduce.CLUSTERFUZZ_AUTH_HEADER: 'Bearer 12345',
+        reproduce.CLUSTERFUZZ_AUTH_IDENTITY: 'identity@something'}
     response_dict = {
         'status': 401,
         'type': 'UnauthorizedException',
@@ -288,7 +306,7 @@ class SendRequestTest(helpers.ExtendedTestCase):
     )
 
 
-class GetTestcaseTest(helpers.ExtendedTestCase):
+class GetTestcaseAndIdentityTest(helpers.ExtendedTestCase):
   """Test get_testcase."""
 
   def setUp(self):
@@ -299,18 +317,23 @@ class GetTestcaseTest(helpers.ExtendedTestCase):
 
   def test_succeed(self):
     """Test succeed."""
-    self.mock.send_request.return_value = mock.Mock(text='{"test": "ok"}')
+    self.mock.send_request.return_value = mock.Mock(
+        text='{"test": "ok"}',
+        headers={reproduce.CLUSTERFUZZ_AUTH_IDENTITY: 'identity'})
     self.mock.create.return_value = 'dummy testcase'
-    self.assertEqual('dummy testcase', reproduce.get_testcase('12345'))
+    self.assertEqual(
+        ('dummy testcase', 'identity'),
+        reproduce.get_testcase_and_identity('12345'))
 
     self.mock.send_request.assert_called_once_with(
         reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
 
   def test_404(self):
     """Test 404."""
-    self.mock.send_request.side_effect = error.ClusterFuzzError(404, 'resp')
+    self.mock.send_request.side_effect = error.ClusterFuzzError(
+        404, 'resp', 'identity')
     with self.assertRaises(error.InvalidTestcaseIdError) as cm:
-      reproduce.get_testcase('12345')
+      reproduce.get_testcase_and_identity('12345')
 
     self.assertIn('12345', cm.exception.message)
     self.mock.send_request.assert_called_once_with(
@@ -318,22 +341,26 @@ class GetTestcaseTest(helpers.ExtendedTestCase):
 
   def test_401(self):
     """Test 401."""
-    self.mock.send_request.side_effect = error.ClusterFuzzError(401, 'resp')
+    self.mock.send_request.side_effect = error.ClusterFuzzError(
+        401, 'resp', 'identity@something')
     with self.assertRaises(error.UnauthorizedError) as cm:
-      reproduce.get_testcase('12345')
+      reproduce.get_testcase_and_identity('12345')
 
     self.assertIn('12345', cm.exception.message)
+    self.assertIn('identity@something', cm.exception.message)
     self.mock.send_request.assert_called_once_with(
         reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
 
   def test_error(self):
     """Test other error."""
-    self.mock.send_request.side_effect = error.ClusterFuzzError(500, 'resp')
+    self.mock.send_request.side_effect = error.ClusterFuzzError(
+        500, 'resp', 'identity@something')
     with self.assertRaises(error.ClusterFuzzError) as cm:
-      reproduce.get_testcase('12345')
+      reproduce.get_testcase_and_identity('12345')
 
     self.assertEqual(500, cm.exception.status_code)
     self.assertIn('resp', cm.exception.message)
+    self.assertIn('identity@something', cm.exception.message)
     self.mock.send_request.assert_called_once_with(
         reproduce.CLUSTERFUZZ_TESTCASE_INFO_URL, '{"testcaseId": "12345"}')
 

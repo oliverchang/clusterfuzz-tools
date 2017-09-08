@@ -42,7 +42,8 @@ def build_base_testcase(stacktrace_lines=None, revision=None, build_url=None,
                    'job_type': job_type,
                    'one_time_crasher_flag': False,
                    'minimized_arguments': minimized_args,
-                   'absolute_path': '/absolute/path%s' % extension},
+                   'absolute_path': '/absolute/path%s' % extension,
+                   'platform': 'linux'},
       'timestamp': 123}
   if gestures:
     testcase_json['testcase']['gestures'] = []

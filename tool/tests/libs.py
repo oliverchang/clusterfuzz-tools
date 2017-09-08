@@ -27,7 +27,8 @@ def make_testcase(
     command_line_file_path=None,
     android_package_name=None,
     android_main_class_name=None,
-    created_at=100):
+    created_at=100,
+    platform='linux'):
   """Make a testcase."""
   if files is None:
     files = {'test.conf': 'test-conf-content'}
@@ -49,7 +50,8 @@ def make_testcase(
       command_line_file_path=command_line_file_path,
       android_package_name=android_package_name,
       android_main_class_name=android_main_class_name,
-      created_at=created_at)
+      created_at=created_at,
+      platform=platform)
 
 
 def make_definition(
@@ -87,8 +89,10 @@ def make_options(
     target_args=None,
     edit_mode=False,
     skip_deps=False,
-    enable_debug=False):
+    enable_debug=False,
+    extra_log_params=None):
   """Make an option."""
+  extra_log_params = extra_log_params or {}
   return common.Options(
       testcase_id=testcase_id,
       current=current,
@@ -101,4 +105,5 @@ def make_options(
       target_args=target_args,
       edit_mode=edit_mode,
       skip_deps=skip_deps,
-      enable_debug=enable_debug)
+      enable_debug=enable_debug,
+      extra_log_params=extra_log_params)

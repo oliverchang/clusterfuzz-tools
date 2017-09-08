@@ -82,14 +82,18 @@ class ClusterFuzzError(ExpectedException):
   the exception is dealt with."""
 
   MESSAGE = (
-      "Error calling clusterfuzz.com's API. \nHere's the response: {response}")
+      "Error calling clusterfuzz.com's API.\n"
+      'User: {identity}\n'
+      "Response: {response}")
   EXIT_CODE = 44
 
-  def __init__(self, status_code, response):
+  def __init__(self, status_code, response, identity):
     super(ClusterFuzzError, self).__init__(
-        self.MESSAGE.format(response=str(response)), self.EXIT_CODE)
+        self.MESSAGE.format(response=str(response), identity=identity),
+        self.EXIT_CODE)
     self.status_code = status_code
     self.response = response
+    self.identity = identity
 
 
 class PermissionsTooPermissiveError(ExpectedException):
@@ -269,14 +273,15 @@ class UnauthorizedError(ExpectedException):
   """An exception when the user cannot access the testcase."""
 
   MESSAGE = (
-      "You aren't allowed to access the testcase ID ({testcase_id}). "
-      'Can you access '
+      "You ({identity}) aren't allowed to access the testcase ID "
+      '({testcase_id}). Can you access '
       'https://clusterfuzz.com/v2/testcase-detail/{testcase_id} ?')
   EXIT_CODE = 57
 
-  def __init__(self, testcase_id):
+  def __init__(self, testcase_id, identity):
     super(UnauthorizedError, self).__init__(
-        self.MESSAGE.format(testcase_id=str(testcase_id)), self.EXIT_CODE)
+        self.MESSAGE.format(identity=identity, testcase_id=str(testcase_id)),
+        self.EXIT_CODE)
 
 
 class DifferentStacktraceError(ExpectedException):

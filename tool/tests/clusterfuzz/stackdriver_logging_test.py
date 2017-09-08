@@ -132,9 +132,9 @@ class TestSendLog(helpers.ExtendedTestCase):
 
 
 @stackdriver_logging.log
-def not_raise(param):  # pylint: disable=unused-argument
+def not_raise(param, extra_log_params):  # pylint: disable=unused-argument
   """Dummy function."""
-  pass
+  extra_log_params['extra'] = 'yes'
 
 
 class LogTest(helpers.ExtendedTestCase):
@@ -150,67 +150,79 @@ class LogTest(helpers.ExtendedTestCase):
     self.exception = Exception('Oops')
 
     @stackdriver_logging.log
-    def raise_func(param):  # pylint: disable=unused-argument
+    def raise_func(param, extra_log_params):  # pylint: disable=unused-argument
       raise self.exception
 
     with self.assertRaises(Exception) as cm:
-      raise_func(param='yes')
+      raise_func(param='yes')  # pylint: disable=no-value-for-parameter
 
     self.assertEqual(self.exception, cm.exception)
     self.mock.send_start.assert_called_once_with(
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
     self.mock.send_failure.assert_called_once_with(
         self.exception, mock.ANY,
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
 
   def test_keyboard_interrupt(self):
     """Test raising a KeyboardInterrupt exception."""
     self.exception = KeyboardInterrupt()
 
     @stackdriver_logging.log
-    def raise_keyboard_interrupt(param):  # pylint: disable=unused-argument
+    def raise_keyboard_interrupt(
+        param, extra_log_params):  # pylint: disable=unused-argument
       raise self.exception
 
     with self.assertRaises(SystemExit) as cm:
+      # pylint: disable=no-value-for-parameter
       raise_keyboard_interrupt(param='yes')
 
     self.assertEqual(1, cm.exception.code)
     self.mock.send_start.assert_called_once_with(
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
     self.mock.send_failure.assert_called_once_with(
         self.exception, mock.ANY,
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
 
   def test_expected_exception(self):
     """Test raising an ExpectedException."""
     self.exception = error.GomaNotInstalledError()
 
     @stackdriver_logging.log
-    def raise_expected_exception(param):  # pylint: disable=unused-argument
+    def raise_expected_exception(
+        param, extra_log_params):  # pylint: disable=unused-argument
       raise self.exception
 
     with self.assertRaises(SystemExit) as cm:
+      # pylint: disable=no-value-for-parameter
       raise_expected_exception(param='yes')
 
     self.assertEqual(error.GomaNotInstalledError.EXIT_CODE, cm.exception.code)
     self.mock.send_start.assert_called_once_with(
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
     self.mock.send_failure.assert_called_once_with(
         self.exception, mock.ANY,
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
 
   def test_success(self):
     """Test succeeding."""
-    not_raise(param='yes')
+    not_raise(param='yes')  # pylint: disable=no-value-for-parameter
     self.mock.send_start.assert_called_once_with(
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {}})
     self.mock.send_success.assert_called_once_with(
-        {'command': 'stackdriver_logging_test', 'param': 'yes'})
+        {'command': 'stackdriver_logging_test', 'param': 'yes',
+         'extras': {'extra': 'yes'}})
 
   def test_on_positional_args(self):
     """Test error on positional arguments."""
     with self.assertRaises(Exception) as cm:
-      not_raise('yes')
+      not_raise('yes')  # pylint: disable=no-value-for-parameter
     self.assertEqual(
         'Invoking not_raise with positional arguments is not allowed.',
         cm.exception.message)
@@ -241,7 +253,7 @@ class SendSuccessFailureTest(helpers.ExtendedTestCase):
     stackdriver_logging.send_failure(exception, 'trace', {'test': 'yes'})
     self.mock.send_log.assert_called_once_with(
         {'test': 'yes', 'exception': 'ExpectedException', 'success': False,
-         'extras': {'a': 'b'}},
+         'exception_extras': {'a': 'b'}},
         'trace')
 
   def test_send_success(self):

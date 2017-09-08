@@ -32,6 +32,7 @@ from error import error
 
 
 CLUSTERFUZZ_AUTH_HEADER = 'x-clusterfuzz-authorization'
+CLUSTERFUZZ_AUTH_IDENTITY = 'x-clusterfuzz-identity'
 CLUSTERFUZZ_TESTCASE_INFO_URL = (
     'https://%s/v2/testcase-detail/refresh' % common.DOMAIN_NAME)
 GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?%s' % (
@@ -106,13 +107,15 @@ def send_request(url, data):
       break
 
   if response.status_code != 200:
-    raise error.ClusterFuzzError(response.status_code, response.text)
+    raise error.ClusterFuzzError(
+        response.status_code, response.text,
+        str(response.headers.get(CLUSTERFUZZ_AUTH_IDENTITY, '')))
 
   common.store_auth_header(response.headers[CLUSTERFUZZ_AUTH_HEADER])
   return response
 
 
-def get_testcase(testcase_id):
+def get_testcase_and_identity(testcase_id):
   """Pulls testcase information from ClusterFuzz.
 
   Returns a dictionary with the JSON response if the
@@ -121,13 +124,14 @@ def get_testcase(testcase_id):
   logger.info('Downloading testcase information...')
   data = json.dumps({'testcaseId': testcase_id})
   try:
-    return testcase.create(
-        json.loads(send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data).text))
+    resp = send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data)
+    return (testcase.create(json.loads(resp.text)),
+            resp.headers[CLUSTERFUZZ_AUTH_IDENTITY])
   except error.ClusterFuzzError as e:
     if e.status_code == 404:
       raise error.InvalidTestcaseIdError(testcase_id)
     elif e.status_code == 403 or e.status_code == 401:
-      raise error.UnauthorizedError(testcase_id)
+      raise error.UnauthorizedError(testcase_id, e.identity)
     else:
       raise e
 
@@ -254,7 +258,7 @@ def create_builder_class(build, definition):
 @stackdriver_logging.log
 def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
             iterations, disable_xvfb, target_args, edit_mode, skip_deps,
-            enable_debug):
+            enable_debug, extra_log_params):
   """Execute the reproduce command."""
   options = common.Options(
       testcase_id=testcase_id,
@@ -268,14 +272,19 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
       target_args=target_args,
       edit_mode=edit_mode,
       skip_deps=skip_deps,
-      enable_debug=enable_debug)
+      enable_debug=enable_debug,
+      extra_log_params=extra_log_params)
 
   logger.info('Reproducing testcase %s', testcase_id)
   logger.debug('%s', str(options))
 
   common.ensure_important_dirs()
 
-  current_testcase = get_testcase(testcase_id)
+  current_testcase, identity = get_testcase_and_identity(testcase_id)
+  extra_log_params['identity'] = identity
+  extra_log_params['job_type'] = current_testcase.job_type
+  extra_log_params['platform'] = current_testcase.platform
+  extra_log_params['reproducible'] = current_testcase.reproducible
   # A hack to download testcase early. Otherwise, OAuth access token might
   # expire after compiling (~1h).
   current_testcase.get_testcase_path()
