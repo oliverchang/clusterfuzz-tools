@@ -1088,6 +1088,7 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
         'clusterfuzz.binary_providers.ChromiumBuilder.get_build_dir_path',
         'clusterfuzz.binary_providers.ChromiumBuilder.get_binary_name',
         'clusterfuzz.binary_providers.ChromiumBuilder.install_deps',
+        'clusterfuzz.binary_providers.ChromiumBuilder.get_gn_args',
     ])
     self.builder = binary_providers.ClankiumBuilder(
         libs.make_testcase(revision='1234'),
@@ -1143,6 +1144,12 @@ class ClankiumBuilderTest(helpers.ExtendedTestCase):
         'sudo', 'PATH=$PATH build/install-build-deps-android.sh',
         self.builder.get_source_dir_path(), stdout_transformer=mock.ANY,
         preexec_fn=None, redirect_stderr_to_stdout=True)
+
+  def test_get_gn_args(self):
+    """Tests getting gn args."""
+    self.mock.get_gn_args.return_value = {'target_cpu': '"x86"'}
+    args = self.builder.get_gn_args()
+    self.assertEqual({'target_cpu': '"arm"'}, args)
 
 
 class GetClankShaTest(helpers.ExtendedTestCase):

@@ -726,3 +726,18 @@ class ClankiumBuilder(ChromiumBuilder):
   def get_unstripped_lib_dir_path(self):
     """Get the unstripped lib path for Android."""
     return os.path.join(self.get_build_dir_path(), 'lib.unstripped')
+
+  @common.memoize
+  def get_gn_args(self):
+    """Ensures that args.gn is set up properly."""
+    args = super(ClankiumBuilder, self).get_gn_args()
+    # android_asan_chrome_x86 is on a VM. Therefore, it's not possible to
+    # deploy it on a device. Therefore, we change its target CPU to arm, so that
+    # it can be deployed on an android device.
+    if 'arm' not in args.get('target_cpu'):
+      logger.info(common.colorize(
+          'WARNING: this crash is NOT on `target_cpu = arm`. '
+          '`target_cpu` is modified to `arm` to make it work on an android '
+          'device.', common.BASH_YELLOW_MARKER))
+      args['target_cpu'] = '"arm"'
+    return args
