@@ -1,7 +1,7 @@
 ---
 
 # Increment the number when modifying the image.
-image_name: chromium-image-6
+image_name: chromium-image-7
 
 project_id: clusterfuzz-tools
 zone: us-central1-a

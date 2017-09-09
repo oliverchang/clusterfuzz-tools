@@ -1,4 +1,9 @@
 ---
+# image.yml is deployed separately from playbook.yml because certain operations
+# take very long time. For example, cloning Chrome takes an hour.
+#
+# In general, we prefer every operation to be in playbook.yml because it's
+# deployed more often.
 
 - name: Setup the instance on GCE
   hosts: localhost
@@ -46,23 +51,21 @@
     - group:
         name: clusterfuzz
         state: present
-    - name: Allow clusterfuzz group to have passwordless sudo
-      lineinfile:
-        dest: /etc/sudoers
-        state: present
-        regexp: '^%clusterfuzz'
-        line: '%clusterfuzz ALL=(ALL) NOPASSWD: ALL'
-    - name: Allow clusterfuzz user to have passwordless sudo
-      lineinfile:
-        dest: /etc/sudoers
-        state: present
-        regexp: '^clusterfuzz'
-        line: 'clusterfuzz ALL=(ALL) NOPASSWD: ALL'
     - user:
         name: clusterfuzz
         state: present
         groups: clusterfuzz
         shell: /bin/bash
+    # The sudo permission is needed when install Chrome dependencies.
+    - name: Set passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: "^{{item}}"
+        line: "{{item}} ALL=(ALL) NOPASSWD: ALL"
+      with_items:
+        - '%clusterfuzz'  # for group
+        - 'clusterfuzz'  # for user
     - apt:
         update_cache: yes
     - pam_limits: domain=* limit_type={{ item }} limit_item=nofile value=1000000
@@ -117,6 +120,7 @@
       command: "fetch --nohooks --force chromium"
       args:
         chdir: "{{ home }}/chromium"
+    # This is needed when running install-build-deps.sh
     - name: Accept mscorefonts EULA
       command: bash -c "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | sudo debconf-set-selections"
     - name: Run install-build-deps.sh
