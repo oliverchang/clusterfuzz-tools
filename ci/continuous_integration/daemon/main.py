@@ -37,7 +37,7 @@ REPRODUCE_TOOL_TIMEOUT = 3 * 60 * 60
 PROCESSED_TESTCASE_IDS = LRUCacheDict(max_size=1000, expiration=172800)
 
 # The options that will be tested on the CI.
-TEST_OPTIONS = ['', '--current --skip-deps']
+TEST_OPTIONS = ['', '--current --skip-deps -i 20']
 
 # The dir to be removed and checked out. See:
 # https://github.com/google/clusterfuzz-tools/issues/429

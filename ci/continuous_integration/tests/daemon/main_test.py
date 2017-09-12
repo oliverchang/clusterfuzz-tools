@@ -260,7 +260,7 @@ class ResetAndRunTestcaseTest(helpers.ExtendedTestCase):
         mock.call(1234, 'sanity', '0.2.2rc10', 'master', 'run_testcase',
                   'some logs', ''),
         mock.call(1234, 'sanity', '0.2.2rc10', 'master', 'run_testcase',
-                  'some logs', '--current --skip-deps')
+                  'some logs', '--current --skip-deps -i 20')
     ])
     self.assert_exact_calls(
         self.mock.prepare_binary_and_get_version, [mock.call('master')])
