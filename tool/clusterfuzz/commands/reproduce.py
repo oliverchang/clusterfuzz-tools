@@ -43,7 +43,6 @@ GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?%s' % (
         'response_type': 'code',
         'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob'}))
 RETRY_COUNT = 5
-SLEEP_TIME_WHEN_500 = 3
 logger = logging.getLogger('clusterfuzz')
 
 
@@ -91,17 +90,20 @@ def send_request(url, data):
   response = None
   for _ in range(RETRY_COUNT):
     response = common.post(
-        url=url, headers={
+        url=url,
+        headers={
             'Authorization': header,
-            'User-Agent': 'clusterfuzz-tools'},
-        allow_redirects=True, data=data)
+            'User-Agent': 'clusterfuzz-tools'
+        },
+        data=data,
+        allow_redirects=True)
 
     # The access token expired.
     if response.status_code == 401:
       header = get_verification_header()
     # Internal server error (e.g. due to deployment)
     elif response.status_code == 500:
-      time.sleep(SLEEP_TIME_WHEN_500)
+      time.sleep(common.RETRY_SLEEP_TIME)
       continue
     else:  # Other errors or success
       break

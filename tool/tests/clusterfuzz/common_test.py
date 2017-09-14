@@ -21,6 +21,7 @@ import signal
 import stat
 
 import mock
+from requests import exceptions
 
 from clusterfuzz import common
 from error import error
@@ -719,18 +720,66 @@ class PostTest(helpers.ExtendedTestCase):
     self.setup_fake_filesystem()
     helpers.patch(self, [
         'requests_cache.CachedSession',
+        'time.sleep'
     ])
     self.http = mock.Mock()
     self.mock.CachedSession.return_value = self.http
 
   def test_post(self):
     """Test post."""
-    common.post('a', b='c')
+    self.http.post.return_value = 'returned'
+    self.assertEqual(
+        'returned',
+        common.post(
+            url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing'))
 
     self.assertTrue(os.path.exists(common.CLUSTERFUZZ_TESTCASES_DIR))
     self.assertEqual(1, self.mock.CachedSession.call_count)
     self.assertEqual(1, self.http.mount.call_count)
-    self.http.post.assert_called_once_with('a', b='c')
+    self.http.post.assert_called_once_with(
+        url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing')
+
+  def test_retry(self):
+    """Test retrying."""
+    self.http.post.side_effect = (
+        [exceptions.ConnectionError()] * common.RETRY_COUNT +
+        ['Something'])
+
+    self.assertEqual(
+        'Something',
+        common.post(
+            url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing'))
+
+    self.assertTrue(os.path.exists(common.CLUSTERFUZZ_TESTCASES_DIR))
+    self.assertEqual(common.RETRY_COUNT + 1, self.mock.CachedSession.call_count)
+    self.assertEqual(common.RETRY_COUNT + 1, self.http.mount.call_count)
+    self.assert_exact_calls(
+        self.http.post,
+        [
+            mock.call(
+                url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing')
+        ] * (common.RETRY_COUNT + 1)
+    )
+
+  def test_exception(self):
+    """Test retrying."""
+    self.http.post.side_effect = (
+        [exceptions.ConnectionError()] * (common.RETRY_COUNT + 1))
+
+    with self.assertRaises(exceptions.ConnectionError):
+      common.post(
+          url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing')
+
+    self.assertTrue(os.path.exists(common.CLUSTERFUZZ_TESTCASES_DIR))
+    self.assertEqual(common.RETRY_COUNT + 1, self.mock.CachedSession.call_count)
+    self.assertEqual(common.RETRY_COUNT + 1, self.http.mount.call_count)
+    self.assert_exact_calls(
+        self.http.post,
+        [
+            mock.call(
+                url='a', headers={'c': 'd'}, data={'e': 'f'}, random='thing')
+        ] * (common.RETRY_COUNT + 1)
+    )
 
 
 class EnsureImportantDirsTest(helpers.ExtendedTestCase):

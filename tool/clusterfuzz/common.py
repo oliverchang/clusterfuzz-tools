@@ -28,6 +28,7 @@ import namedlist
 import requests_cache
 from requests.packages.urllib3.util import retry
 from requests import adapters
+from requests import exceptions
 from backports.shutil_get_terminal_size import get_terminal_size
 
 from cmd_editor import editor
@@ -35,6 +36,8 @@ from clusterfuzz import local_logging
 from clusterfuzz import output_transformer
 from error import error
 
+RETRY_COUNT = 5
+RETRY_SLEEP_TIME = 3
 
 BASH_BOLD_MARKER = '\033[1m'
 BASH_RESET_STYLE_MARKER = '\033[22m'
@@ -116,13 +119,14 @@ def memoize(func):
   return wrapper
 
 
-@memoize
 def get_http():
   """Get the http object."""
   ensure_dir(CLUSTERFUZZ_TESTCASES_DIR)
   http = requests_cache.CachedSession(
       cache_name=os.path.join(CLUSTERFUZZ_TESTCASES_DIR, 'http_cache'),
-      backend='sqlite', allowable_methods=('GET', 'POST'),
+      backend='sqlite',
+      allowable_methods=('GET', 'POST'),
+      allowable_codes=200,
       expire_after=HTTP_CACHE_TTL)
   http.mount(
       'https://',
@@ -135,9 +139,20 @@ def get_http():
   return http
 
 
-def post(*args, **kwargs):
+def post(url, **kwargs):
   """Make a post request."""
-  return get_http().post(*args, **kwargs)
+  for i in range(RETRY_COUNT + 1):
+    try:
+      return get_http().post(url=url, **kwargs)
+    except exceptions.ConnectionError as e:
+      print e
+      if i == RETRY_COUNT:
+        raise
+      else:
+        logger.warn(
+            'Failed to reach %s: ConnectionError. Retrying %d/%d.',
+            url, i + 1, RETRY_COUNT)
+        time.sleep(RETRY_SLEEP_TIME)
 
 
 class CrashSignature(object):

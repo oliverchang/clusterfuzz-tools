@@ -178,12 +178,12 @@ class SendRequestTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.get_stored_auth_header, [mock.call()])
     self.assert_exact_calls(
         self.mock.store_auth_header, [mock.call('Bearer 12345')])
-    self.assert_exact_calls(self.mock.post, [mock.call(
-        url='url',
-        headers={'Authorization': 'Bearer 12345',
-                 'User-Agent': 'clusterfuzz-tools'},
-        data='data',
-        allow_redirects=True)] * 3)
+    self.assert_exact_calls(self.mock.post, [
+        mock.call(
+            url='url', data='data', allow_redirects=True,
+            headers={'Authorization': 'Bearer 12345',
+                     'User-Agent': 'clusterfuzz-tools'})
+    ] * 3)
     self.assertEqual(200, response.status_code)
     self.assertEqual(
         'identity@something',
@@ -212,17 +212,14 @@ class SendRequestTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.get_verification_header, [mock.call()])
     self.assert_exact_calls(self.mock.post, [
         mock.call(
-            allow_redirects=True,
-            url='url',
-            data='data',
+            allow_redirects=True, url='url', data='data',
             headers={'Authorization': 'Bearer 12345',
                      'User-Agent': 'clusterfuzz-tools'}),
         mock.call(
+            allow_redirects=True, data='data', url='url',
             headers={'Authorization': 'VerificationCode 12345',
-                     'User-Agent': 'clusterfuzz-tools'},
-            allow_redirects=True,
-            data='data',
-            url='url')])
+                     'User-Agent': 'clusterfuzz-tools'})
+    ])
     self.assert_exact_calls(self.mock.store_auth_header, [
         mock.call('Bearer 12345')])
     self.assertEqual(200, response.status_code)
@@ -250,12 +247,12 @@ class SendRequestTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.get_verification_header, [mock.call()])
     self.assert_exact_calls(self.mock.store_auth_header, [
         mock.call('Bearer 12345')])
-    self.assert_exact_calls(self.mock.post, [mock.call(
-        headers={'Authorization': 'VerificationCode 12345',
-                 'User-Agent': 'clusterfuzz-tools'},
-        allow_redirects=True,
-        data='data',
-        url='url')])
+    self.assert_exact_calls(self.mock.post, [
+        mock.call(
+            allow_redirects=True, data='data', url='url',
+            headers={'Authorization': 'VerificationCode 12345',
+                     'User-Agent': 'clusterfuzz-tools'})
+    ])
     self.assertEqual(200, response.status_code)
 
   def test_incorrect_authorization(self):
@@ -290,19 +287,15 @@ class SendRequestTest(helpers.ExtendedTestCase):
         self.mock.post,
         [
             mock.call(
-                allow_redirects=True,
-                url='url',
-                data='data',
+                allow_redirects=True, url='url', data='data',
                 headers={'Authorization': 'Bearer 12345',
-                         'User-Agent': 'clusterfuzz-tools'}),
+                         'User-Agent': 'clusterfuzz-tools'})
         ] + [
             mock.call(
-                allow_redirects=True,
+                allow_redirects=True, url='url', data='data',
                 headers={'Authorization': 'VerificationCode 12345',
-                         'User-Agent': 'clusterfuzz-tools'},
-                url='url',
-                data='data')
-        ] * 4
+                         'User-Agent': 'clusterfuzz-tools'})
+        ] * (reproduce.RETRY_COUNT - 1)
     )
 
 
