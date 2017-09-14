@@ -126,7 +126,7 @@ def get_http():
       cache_name=os.path.join(CLUSTERFUZZ_TESTCASES_DIR, 'http_cache'),
       backend='sqlite',
       allowable_methods=('GET', 'POST'),
-      allowable_codes=200,
+      allowable_codes=[200],
       expire_after=HTTP_CACHE_TTL)
   http.mount(
       'https://',
@@ -144,7 +144,7 @@ def post(url, **kwargs):
   for i in range(RETRY_COUNT + 1):
     try:
       return get_http().post(url=url, **kwargs)
-    except exceptions.ConnectionError as e:
+    except exceptions.ConnectionError:
       if i == RETRY_COUNT:
         raise
       else:
