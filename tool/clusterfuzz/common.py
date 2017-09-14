@@ -145,7 +145,6 @@ def post(url, **kwargs):
     try:
       return get_http().post(url=url, **kwargs)
     except exceptions.ConnectionError as e:
-      print e
       if i == RETRY_COUNT:
         raise
       else:
