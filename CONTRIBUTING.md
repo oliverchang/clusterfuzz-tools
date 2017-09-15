@@ -30,6 +30,26 @@ information on using pull requests.
 [GitHub Help]: https://help.github.com/articles/about-pull-requests/
 
 
+Architecture
+-------------
+
+The tool is designed to support multiple commands. Currently, the tool only
+supports one command: `reproduce`.
+
+The entry point for `reproduce` is `tool/clusterfuzz/commands/reproduce.py`.
+
+There are 3 main components:
+
+1. `Testcase` (in `tool/clusterfuzz/testcase.py`) provides testcase info,
+   downloads a testcase, and provides path to it.
+2. `BinaryProvider` (in `tool/clusterfuzz/binary_providers.py`) prepares a
+   binary. It builds the binary, provides path to it, and provides path to
+   source location.
+3. `Reproducers` (in `tool/clusterfuzz/reproducers.py`) prepares environment
+   for reproducing (e.g. asan options, putting files in appropriate places),
+   run the binary, and get the result (e.g. symbolize stacktrace).
+
+
 Develop
 ------------
 
