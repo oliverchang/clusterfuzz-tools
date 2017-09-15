@@ -34,34 +34,32 @@ class MainTest(helpers.ExtendedTestCase):
         'daemon.main.update_auth_header',
         'daemon.main.load_new_testcases',
         'daemon.main.prepare_binary_and_get_version',
+        'time.sleep'
     ])
     self.mock_os_environment({'RELEASE': 'release-test'})
     self.setup_fake_filesystem()
     self.mock.load_sanity_check_testcase_ids.return_value = [1, 2]
     self.mock.load_new_testcases.side_effect = [
         [main.Testcase(3, 'job'), main.Testcase(4, 'job')],
-        [main.Testcase(5, 'job')]
+        [main.Testcase(5, 'job')],
+        []
     ]
-    self.mock.reset_and_run_testcase.side_effect = [None, None, None, None,
-                                                    SystemExit]
 
   def test_correct_calls(self):
     """Ensure the main method makes the correct calls to reproduce."""
+    main.main()
 
-    with self.assertRaises(SystemExit):
-      main.main()
-
-    self.assert_exact_calls(self.mock.load_sanity_check_testcase_ids,
-                            [mock.call()])
-    self.assert_exact_calls(self.mock.load_new_testcases, [mock.call(),
-                                                           mock.call()])
+    self.assert_exact_calls(
+        self.mock.load_sanity_check_testcase_ids, [mock.call()])
+    self.assert_exact_calls(
+        self.mock.load_new_testcases, [mock.call()] * 3)
     self.assert_exact_calls(self.mock.reset_and_run_testcase, [
         mock.call(1, 'sanity', 'release-test'),
         mock.call(2, 'sanity', 'release-test'),
         mock.call(3, 'job', 'release-test'),
         mock.call(4, 'job', 'release-test'),
         mock.call(5, 'job', 'release-test')])
-    self.assertEqual(2, self.mock.update_auth_header.call_count)
+    self.assertEqual(3, self.mock.update_auth_header.call_count)
     self.mock.prepare_binary_and_get_version.assert_called_once_with(
         'release-test')
 
@@ -181,7 +179,8 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
         'daemon.main.post',
         'daemon.main.is_time_valid',
         'random.randint',
-        'time.time'
+        'time.time',
+        'time.sleep'
     ])
     main.PROCESSED_TESTCASE_IDS.clear()
 
@@ -219,7 +218,8 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
             'https://clusterfuzz.com/v2/testcases/load',
             headers={'Authorization': 'Bearer xyzabc'},
             json={'page': page, 'reproducible': 'yes',
-                  'q': 'platform:linux', 'open': 'yes'})
+                  'q': 'platform:linux', 'open': 'yes',
+                  'project': 'chromium'})
         for page in xrange(1, 17)
     ])
 

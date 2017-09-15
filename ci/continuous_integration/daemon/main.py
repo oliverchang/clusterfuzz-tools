@@ -146,12 +146,20 @@ def load_new_testcases():
   page = 1
   supported_jobtypes = get_supported_jobtypes()
 
-  while len(testcases) < 20 and page < 30:
+  while len(testcases) < 20 and page < 100:
     r = post('https://clusterfuzz.com/v2/testcases/load',
              headers={'Authorization': auth_header},
-             json={'page': page, 'reproducible': 'yes',
-                   'q': 'platform:linux', 'open': 'yes'})
+             json={
+                 'page': page,
+                 'reproducible': 'yes',
+                 'q': 'platform:linux',
+                 'project': 'chromium',
+                 'open': 'yes'
+             })
     page += 1
+
+    # Avoid DDOS clusterfuzz.
+    time.sleep(3)
 
     items = r.json()['items']
     if not items:
@@ -300,5 +308,14 @@ def main():
 
   while True:
     update_auth_header()
-    for testcase in load_new_testcases():
+    testcases = load_new_testcases()
+
+    if not testcases:
+      print 'There is no more valid testcase. Exit.'
+      break
+
+    for testcase in testcases:
       reset_and_run_testcase(testcase.id, testcase.job_type, release)
+
+    # Avoid DDOS clusterfuzz.
+    time.sleep(30)
