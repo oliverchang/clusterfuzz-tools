@@ -64,7 +64,7 @@ class InitTest(helpers.ExtendedTestCase):
     error.ClusterFuzzError(500, 'resp', 'identity')
     error.PermissionsTooPermissiveError('filename', 'perm')
     error.GomaNotInstalledError()
-    error.JobTypeNotSupportedError('job')
+    error.JobTypeNotSupportedError('job', '1234')
     error.NotInstalledError('bin')
     error.GsutilNotInstalledError()
     error.BadJobTypeDefinitionError('job')

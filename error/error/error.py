@@ -131,17 +131,20 @@ class GomaNotInstalledError(ExpectedException):
 class JobTypeNotSupportedError(ExpectedException):
   """An exception raised when user tries to run an unsupported build type."""
 
+  # pylint: disable=line-too-long
   MESSAGE = (
       'Unfortunately, the job {job_type} is not yet supported.'
       'If you believe that the crash will occur on Linux as well, please go '
-      'to https://clusterfuzz.com/uploadusertestcase, upload the testcase, '
+      'to https://clusterfuzz.com/v2/upload-testcase?upload=true&testcaseId={testcase_id} '
       'and choose a corresponding Linux job type. Ask us for help at '
       'clusterfuzz-dev@chromium.org.')
+  # pylint: enable=line-too-long
   EXIT_CODE = 47
 
-  def __init__(self, job_type):
+  def __init__(self, job_type, testcase_id):
     super(JobTypeNotSupportedError, self).__init__(
-        self.MESSAGE.format(job_type=job_type), self.EXIT_CODE)
+        self.MESSAGE.format(job_type=job_type, testcase_id=testcase_id),
+        self.EXIT_CODE)
 
 
 class NotInstalledError(ExpectedException):

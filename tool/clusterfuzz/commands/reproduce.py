@@ -213,7 +213,7 @@ def get_supported_jobs():
   return to_return
 
 
-def get_definition(job_type, build_param):
+def get_definition(job_type, testcase_id, build_param):
   """Get definition."""
   supported_jobs = get_supported_jobs()
   if build_param == 'download' or not build_param:
@@ -225,7 +225,7 @@ def get_definition(job_type, build_param):
     if job_type in supported_jobs[build]:
       return supported_jobs[build][job_type]
 
-  raise error.JobTypeNotSupportedError(job_type)
+  raise error.JobTypeNotSupportedError(job_type, testcase_id)
 
 
 def warn_unreproducible_if_needed(current_testcase):
@@ -290,7 +290,7 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
   # A hack to download testcase early. Otherwise, OAuth access token might
   # expire after compiling (~1h).
   current_testcase.get_testcase_path()
-  definition = get_definition(current_testcase.job_type, build)
+  definition = get_definition(current_testcase.job_type, testcase_id, build)
 
   warn_unreproducible_if_needed(current_testcase)
 

@@ -429,38 +429,41 @@ class GetDefinitionTest(helpers.ExtendedTestCase):
 
   def test_download_param(self):
     """Tests when the build_param is download"""
-    result = reproduce.get_definition('libfuzzer_chrome_msan', 'download')
+    result = reproduce.get_definition(
+        'libfuzzer_chrome_msan', '123', 'download')
     self.assertEqual(result, self.chromium_definition)
 
-    result = reproduce.get_definition('linux_asan_d8', 'download')
+    result = reproduce.get_definition('linux_asan_d8', '123', 'download')
     self.assertEqual(result, self.v8_definition)
 
     with self.assertRaises(error.JobTypeNotSupportedError):
-      result = reproduce.get_definition('fuzzlibber_nasm', 'download')
+      result = reproduce.get_definition(
+          'fuzzlibber_nasm', '123', 'download')
 
   def test_default(self):
     """Tests when the build is not specified."""
-    result = reproduce.get_definition('linux_asan_d8', '')
+    result = reproduce.get_definition('linux_asan_d8', '123', '')
     self.assertEqual(result, self.v8_definition)
 
-    result = reproduce.get_definition('libfuzzer_chrome_msan', '')
+    result = reproduce.get_definition('libfuzzer_chrome_msan', '123', '')
     self.assertEqual(result, self.chromium_definition)
 
   def test_standalone(self):
     """Tests when the build is standalone."""
-    result = reproduce.get_definition('linux_asan_d8', 'standalone')
+    result = reproduce.get_definition('linux_asan_d8', '123', 'standalone')
     self.assertEqual(result, self.v8_definition)
 
     with self.assertRaises(error.JobTypeNotSupportedError):
-      result = reproduce.get_definition('fuzzlibber_nasm', 'standalone')
+      result = reproduce.get_definition('fuzzlibber_nasm', '123', 'standalone')
 
   def test_chromium(self):
     """Tests when the build is chromium."""
-    result = reproduce.get_definition('libfuzzer_chrome_msan', 'chromium')
+    result = reproduce.get_definition(
+        'libfuzzer_chrome_msan', '123', 'chromium')
     self.assertEqual(result, self.chromium_definition)
 
     with self.assertRaises(error.JobTypeNotSupportedError):
-      result = reproduce.get_definition('fuzzlibber_nasm', 'chromium')
+      result = reproduce.get_definition('fuzzlibber_nasm', '123', 'chromium')
 
 
 class GetSupportedJobsTest(helpers.ExtendedTestCase):
