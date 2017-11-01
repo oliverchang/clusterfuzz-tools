@@ -11,7 +11,7 @@ from clusterfuzz import output_transformer
 from error import error
 
 
-
+ANDROID_LIBRARY_EXTENSION = '.so'
 ASAN_BEING_INSTALLED_SEARCH_STRING = 'Please wait until the device restarts'
 DM_VERITY_ENABLED_STRING = 'dm_verity is enabled'
 BOOT_TIMEOUT = 600
@@ -198,6 +198,9 @@ def find_lib_path(binary_path, search_paths, lib_tmp_dir_path):
   """Find the filename in search paths (or pull from the device) and return
     full path."""
   filename = os.path.basename(binary_path)
+  if not os.path.splitext(filename)[1] == ANDROID_LIBRARY_EXTENSION:
+    # Skip non-library paths.
+    return '<unknown>'
 
   for path in search_paths + [lib_tmp_dir_path]:
     full_path = os.path.join(path, filename)

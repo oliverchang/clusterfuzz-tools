@@ -551,3 +551,9 @@ class FindLibPathTest(helpers.ExtendedTestCase):
     self.assert_exact_calls(self.mock.adb, [
         mock.call('pull /android/libc.so /tmp/lib'),
     ])
+
+  def test_pull_non_library_file(self):
+    """Tests skipping to pull a non-library file."""
+    self.assertEqual(
+        '<unknown>',
+        android.find_lib_path('/android/some.file', ['/test/lib'], '/tmp/lib'))
