@@ -1,6 +1,6 @@
 backports.shutil_get_terminal_size==1.0.0
 coveralls==1.1
-cryptography
+cryptography==2.0.3
 httplib2==0.10.3
 idna
 mock==2.0.0
