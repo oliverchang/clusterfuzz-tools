@@ -313,7 +313,7 @@ fi
 
 # FIXME: alloc_dealloc_mismatch=0 prevents a failure in libdvm startup,
 # which may or may not be a real bug (probably not).
-ASAN_OPTIONS=abort_on_error=0,alloc_dealloc_mismatch=0,disable_core=1,start_deactivated=1,strict_memcmp=0
+ASAN_OPTIONS=abort_on_error=0,alloc_dealloc_mismatch=0,disable_core=1,handle_abort=1,handle_segv=1,handle_sigbus=1,handle_sigfpe=1,handle_sigill=1,start_deactivated=1,strict_memcmp=0,use_sigaltstack=1
 
 # The name of a symlink to libclang_rt.asan-$ARCH-android.so used in LD_PRELOAD.
 # The idea is to have the same name in lib and lib64 to keep it from falling
