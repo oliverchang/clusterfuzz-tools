@@ -283,9 +283,8 @@ class DownloadTestcaseTest(helpers.ExtendedTestCase):
     self.mock.execute.assert_called_once_with(
         'wget',
         ('--no-verbose --waitretry=%s --retry-connrefused '
-         '--content-disposition --header="Authorization: %s" "url"' % (
-             testcase.DOWNLOAD_TIMEOUT,
-             self.mock.get_stored_auth_header.return_value)),
+         '--content-disposition --header="Authorization: `cat %s`" "url"' % (
+             testcase.DOWNLOAD_TIMEOUT, common.AUTH_HEADER_FILE)),
         '/tmp/folder'
     )
     self.mock.listdir.assert_called_once_with('/tmp/folder')

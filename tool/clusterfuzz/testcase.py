@@ -168,13 +168,18 @@ def download_testcase(url):
   tmp_dir_path = tempfile.mkdtemp(dir=common.CLUSTERFUZZ_TMP_DIR)
   logger.info('Downloading testcase files...')
 
-  auth_header = common.get_stored_auth_header()
+  # We don't use the access token directly. But we use `cat file` instead to
+  # avoid user accidentally copying and pasting the output and leaking the
+  # access token.
+  # See: https://github.com/google/clusterfuzz-tools/issues/525
+  _ = common.get_stored_auth_header()
+
   # Do not use curl because curl doesn't support downloading an empty file.
   # See: https://github.com/google/clusterfuzz-tools/issues/326
   args = (
       '--no-verbose --waitretry=%s --retry-connrefused --content-disposition '
-      '--header="Authorization: %s" "%s"' %
-      (DOWNLOAD_TIMEOUT, auth_header, url))
+      '--header="Authorization: `cat %s`" "%s"' %
+      (DOWNLOAD_TIMEOUT, common.AUTH_HEADER_FILE, url))
   common.execute('wget', args, tmp_dir_path)
   return os.path.join(tmp_dir_path, os.listdir(tmp_dir_path)[0])
 
