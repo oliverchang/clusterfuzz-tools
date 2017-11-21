@@ -31,9 +31,14 @@ def create_reproducer(klass):
   binary_provider = mock.Mock(symbolizer_path='/path/to/symbolizer')
   binary_provider.get_binary_path.return_value = '/fake/build_dir/test_binary'
   binary_provider.get_build_dir_path.return_value = '/fake/build_dir'
-  testcase = mock.Mock(gestures=None, stacktrace_lines=[{'content': 'line'}],
-                       job_type='job_type', reproduction_args='--original',
-                       android_package_name='package')
+  testcase = mock.Mock(
+      gestures=None,
+      stacktrace_lines=[{
+          'content': 'line'
+      }],
+      job_type='job_type',
+      reproduction_args='--original',
+      android_package_name='package')
   testcase.get_testcase_path.return_value = '/fake/testcase_dir/testcase'
   reproducer = klass(
       definition=mock.Mock(),
@@ -47,14 +52,13 @@ def create_reproducer(klass):
   reproducer.original_testcase_path = '/fake/original_testcase_dir/testcase'
   return reproducer
 
+
 class SetUpSymbolizersSuppressionsTest(helpers.ExtendedTestCase):
   """Tests the set_up_symbolizers_suppressions method."""
 
   def setUp(self):
     self.setup_fake_filesystem()
-    helpers.patch(self, [
-        'clusterfuzz.common.get_resource'
-    ])
+    helpers.patch(self, ['clusterfuzz.common.get_resource'])
 
   def test_set_up_correct_env(self):
     """Ensures all the setup methods work correctly."""
@@ -67,65 +71,101 @@ class SetUpSymbolizersSuppressionsTest(helpers.ExtendedTestCase):
 
     def get(_, *paths):
       return os.path.join(root_path, *paths)
+
     self.mock.get_resource.side_effect = get
 
     self.binary_provider = mock.Mock()
     self.definition = mock.Mock()
-    self.testcase = mock.Mock(gestures=None, stacktrace_lines=[
-        {'content': 'line'}], job_type='job_type', reproduction_args='--orig')
+    self.testcase = mock.Mock(
+        gestures=None,
+        stacktrace_lines=[{
+            'content': 'line'
+        }],
+        job_type='job_type',
+        reproduction_args='--orig')
     self.reproducer = reproducers.BaseReproducer(
-        self.definition, self.binary_provider, self.testcase, 'UBSAN',
+        self.definition,
+        self.binary_provider,
+        self.testcase,
+        'UBSAN',
         libs.make_options(target_args='--test'))
 
     self.reproducer.environment = {
         'UBSAN_OPTIONS': ('external_symbolizer_path=/not/correct/path:other_'
                           'option=1:suppressions=/not/correct/path:'
                           'coverage_dir=test'),
-        'LSAN_OPTIONS': 'other=0:suppressions=not/correct/path:option=1'}
+        'CFI_OPTIONS': ('external_symbolizer_path=/not/correct/path:other_'
+                        'option=1:suppressions=/not/correct/path'),
+        'LSAN_OPTIONS':
+            'other=0:suppressions=not/correct/path:option=1'
+    }
     self.reproducer.set_up_symbolizers_suppressions()
     result = self.reproducer.environment
     for i in result:
       if '_OPTIONS' in i:
         result[i] = reproducers.deserialize_sanitizer_options(result[i])
-    self.assertEqual(result, {
-        'UBSAN_OPTIONS': {
-            'external_symbolizer_path':
+    self.assertEqual(
+        result, {
+            'UBSAN_OPTIONS': {
+                'external_symbolizer_path':
+                    '%s/resources/llvm-symbolizer' % root_path,
+                'other_option':
+                    '1',
+                'suppressions': (
+                    '%s/resources/suppressions/ubsan_suppressions.txt' %
+                    root_path)
+            },
+            'CFI_OPTIONS': {
+                'external_symbolizer_path':
+                    '%s/resources/llvm-symbolizer' % root_path,
+                'other_option':
+                    '1',
+                'suppressions': (
+                    '%s/resources/suppressions/ubsan_suppressions.txt' %
+                    root_path)
+            },
+            'LSAN_OPTIONS': {
+                'other':
+                    '0',
+                'suppressions': (
+                    '%s/resources/suppressions/lsan_suppressions.txt' %
+                    root_path),
+                'option':
+                    '1'
+            },
+            'UBSAN_SYMBOLIZER_PATH':
                 '%s/resources/llvm-symbolizer' % root_path,
-            'other_option': '1',
-            'suppressions': (
-                '%s/resources/suppressions/ubsan_suppressions.txt' % root_path)
-        },
-        'LSAN_OPTIONS': {
-            'other': '0',
-            'suppressions': (
-                '%s/resources/suppressions/lsan_suppressions.txt' % root_path),
-            'option': '1'},
-        'UBSAN_SYMBOLIZER_PATH':
-            '%s/resources/llvm-symbolizer' % root_path,
-        'DISPLAY': ':0.0'})
+            'DISPLAY':
+                ':0.0'
+        })
 
 
 class SanitizerOptionsSerializerTest(helpers.ExtendedTestCase):
   """Test the serializer & deserializers for sanitizer options."""
 
   def test_serialize(self):
-    in_dict = {'suppressions': '/a/b/c/d/suppresions.txt',
-               'option': '1',
-               'symbolizer': 'abcde/llvm-symbolizer'}
+    in_dict = {
+        'suppressions': '/a/b/c/d/suppresions.txt',
+        'option': '1',
+        'symbolizer': 'abcde/llvm-symbolizer'
+    }
     out_str = ('suppressions=/a/b/c/d/suppresions.txt:option=1'
                ':symbolizer=abcde/llvm-symbolizer')
 
     self.assertEqual(reproducers.serialize_sanitizer_options(in_dict), out_str)
 
   def test_deserialize(self):
-    out_dict = {'suppressions': '/a/b/c/d/suppresions.txt',
-                'option': '1',
-                'symbolizer': 'abcde/llvm-symbolizer'}
+    out_dict = {
+        'suppressions': '/a/b/c/d/suppresions.txt',
+        'option': '1',
+        'symbolizer': 'abcde/llvm-symbolizer'
+    }
     in_str = ('suppressions=/a/b/c/d/suppresions.txt:option=1'
               ':symbolizer=abcde/llvm-symbolizer')
 
     self.assertEqual(
         reproducers.deserialize_sanitizer_options(in_str), out_dict)
+
 
 class ReproduceCrashTest(helpers.ExtendedTestCase):
   """Tests the reproduce_crash method."""
@@ -158,9 +198,13 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     """Test base's reproduce_crash."""
 
     mocked_testcase = mock.Mock(
-        id=1234, reproduction_args='--repro',
-        environment={'ASAN_OPTIONS': 'test-asan'}, gestures=None,
-        stacktrace_lines=[{'content': 'line'}],
+        id=1234,
+        reproduction_args='--repro',
+        environment={'ASAN_OPTIONS': 'test-asan'},
+        gestures=None,
+        stacktrace_lines=[{
+            'content': 'line'
+        }],
         job_type='job_type')
     mocked_testcase.get_testcase_path.return_value = self.testcase_path
     mocked_provider = mock.Mock(
@@ -169,7 +213,10 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.BaseReproducer(
-        self.definition, mocked_provider, mocked_testcase, 'UBSAN',
+        self.definition,
+        mocked_provider,
+        mocked_testcase,
+        'UBSAN',
         libs.make_options(target_args='--test'))
     reproducer.setup_args()
     reproducer.reproduce_crash()
@@ -191,9 +238,13 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     """Test base's reproduce_crash with environment args."""
 
     mocked_testcase = mock.Mock(
-        id=1234, reproduction_args='--app-dir=%APP_DIR% --testcase=%TESTCASE%',
-        environment={'ASAN_OPTIONS': 'test-asan'}, gestures=None,
-        stacktrace_lines=[{'content': 'line'}],
+        id=1234,
+        reproduction_args='--app-dir=%APP_DIR% --testcase=%TESTCASE%',
+        environment={'ASAN_OPTIONS': 'test-asan'},
+        gestures=None,
+        stacktrace_lines=[{
+            'content': 'line'
+        }],
         job_type='job_type')
     mocked_testcase.get_testcase_path.return_value = self.testcase_path
     mocked_provider = mock.Mock(
@@ -202,15 +253,18 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.BaseReproducer(
-        self.definition, mocked_provider, mocked_testcase, 'UBSAN',
+        self.definition,
+        mocked_provider,
+        mocked_testcase,
+        'UBSAN',
         libs.make_options(target_args='--test'))
     reproducer.setup_args()
     reproducer.reproduce_crash()
     self.assert_exact_calls(self.mock.execute, [
         mock.call(
             '/chrome/source/folder/d8',
-            '--app-dir=%s --testcase=%s --test' % (self.app_directory,
-                                                   self.testcase_path),
+            '--app-dir=%s --testcase=%s --test' %
+            (self.app_directory, self.testcase_path),
             '/chrome/source/folder',
             env={'ASAN_OPTIONS': 'test-asan'},
             exit_on_error=False,
@@ -227,9 +281,13 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     self.mock.start_execute.return_value = mock.Mock()
     self.mock.__enter__.return_value = ':display'
     mocked_testcase = mock.Mock(
-        id=1234, reproduction_args='--repro',
-        environment={'ASAN_OPTIONS': 'test-asan'}, gestures=None,
-        stacktrace_lines=[{'content': 'line'}],
+        id=1234,
+        reproduction_args='--repro',
+        environment={'ASAN_OPTIONS': 'test-asan'},
+        gestures=None,
+        stacktrace_lines=[{
+            'content': 'line'
+        }],
         job_type='job_type')
     mocked_testcase.get_testcase_path.return_value = self.testcase_path
     mocked_provider = mock.Mock(
@@ -238,7 +296,10 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     mocked_provider.get_build_dir_path.return_value = self.app_directory
 
     reproducer = reproducers.LinuxChromeJobReproducer(
-        self.definition, mocked_provider, mocked_testcase, 'UBSAN',
+        self.definition,
+        mocked_provider,
+        mocked_testcase,
+        'UBSAN',
         libs.make_options(target_args='--test'))
     reproducer.gestures = ['gesture,1', 'gesture,2']
     reproducer.setup_args()
@@ -259,13 +320,15 @@ class ReproduceCrashTest(helpers.ExtendedTestCase):
     ])
     self.assert_exact_calls(self.mock.wait_execute, [
         mock.call(
-            self.mock.start_execute.return_value, exit_on_error=False,
+            self.mock.start_execute.return_value,
+            exit_on_error=False,
             timeout=30,
             stdout_transformer=mock.ANY,
             read_buffer_length=1)
     ])
-    self.assert_exact_calls(self.mock.run_gestures, [mock.call(
-        reproducer, self.mock.start_execute.return_value, ':display')])
+    self.assert_exact_calls(self.mock.run_gestures, [
+        mock.call(reproducer, self.mock.start_execute.return_value, ':display')
+    ])
 
 
 class SetupArgsTest(helpers.ExtendedTestCase):
@@ -278,9 +341,13 @@ class SetupArgsTest(helpers.ExtendedTestCase):
         'clusterfuzz.reproducers.update_for_gdb_if_needed',
     ])
     self.testcase = mock.Mock(
-        id=1234, reproduction_args='--repro',
-        environment={'ASAN_OPTIONS': 'test-asan'}, gestures=None,
-        stacktrace_lines=[{'content': 'line'}],
+        id=1234,
+        reproduction_args='--repro',
+        environment={'ASAN_OPTIONS': 'test-asan'},
+        gestures=None,
+        stacktrace_lines=[{
+            'content': 'line'
+        }],
         job_type='job_type')
     self.testcase_path = os.path.expanduser(
         os.path.join('~', '.clusterfuzz', '1234_testcase', 'testcase.js'))
@@ -291,8 +358,8 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     self.provider.get_build_dir_path.return_value = '/chrome/source/folder'
     self.definition = mock.Mock()
     self.mock.update_for_gdb_if_needed.side_effect = (
-        lambda binary_path, args, timeout, should_enable_gdb:
-        (binary_path, args, timeout))
+        lambda binary_path, args, timeout, should_enable_gdb: (binary_path, args, timeout)
+    )
     self.mock.edit_if_needed.side_effect = (
         lambda content, prefix, comment, should_edit: content)
 
@@ -308,10 +375,12 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     reproducer.setup_args()
     self.assertEqual('--repro %s --test' % self.testcase_path, reproducer.args)
     self.mock.update_for_gdb_if_needed.assert_called_once_with(
-        reproducer.binary_path, reproducer.args,
-        reproducer.timeout, reproducer.options.enable_debug)
+        reproducer.binary_path, reproducer.args, reproducer.timeout,
+        reproducer.options.enable_debug)
     self.mock.edit_if_needed.assert_called_once_with(
-        reproducer.args, prefix=mock.ANY, comment=mock.ANY,
+        reproducer.args,
+        prefix=mock.ANY,
+        comment=mock.ANY,
         should_edit=reproducer.options.edit_mode)
 
   def test_enable_xvfb(self):
@@ -323,10 +392,12 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     reproducer.setup_args()
     self.assertEqual('--repro --test %s' % self.testcase_path, reproducer.args)
     self.mock.update_for_gdb_if_needed.assert_called_once_with(
-        reproducer.binary_path, reproducer.args,
-        reproducer.timeout, reproducer.options.enable_debug)
+        reproducer.binary_path, reproducer.args, reproducer.timeout,
+        reproducer.options.enable_debug)
     self.mock.edit_if_needed.assert_called_once_with(
-        reproducer.args, prefix=mock.ANY, comment=mock.ANY,
+        reproducer.args,
+        prefix=mock.ANY,
+        comment=mock.ANY,
         should_edit=reproducer.options.edit_mode)
 
 
@@ -351,10 +422,9 @@ class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
   def test_reproduce_crash(self):
     """Ensures pre-build steps run correctly."""
     self.reproducer.pre_build_steps()
-    self.assert_exact_calls(
-        self.mock.pre_build_steps, [mock.call(self.reproducer)])
-    self.assertEqual(
-        self.reproducer.args, '--always-opt --test-user-data-dir')
+    self.assert_exact_calls(self.mock.pre_build_steps,
+                            [mock.call(self.reproducer)])
+    self.assertEqual(self.reproducer.args, '--always-opt --test-user-data-dir')
     self.mock.ensure_user_data_dir_if_needed.assert_called_once_with(
         '--always-opt', False)
 
@@ -365,18 +435,15 @@ class LinuxChromeJobReproducerTest(helpers.ExtendedTestCase):
     self.mock.update_testcase_path_in_layout_test.assert_called_once_with(
         self.reproducer.testcase.get_testcase_path(),
         self.reproducer.original_testcase_path,
-        self.reproducer.source_directory,
-        self.reproducer.testcase.created_at)
+        self.reproducer.source_directory, self.reproducer.testcase.created_at)
 
 
 class XdotoolCommandTest(helpers.ExtendedTestCase):
   """Tests the xdotool_command method."""
 
   def setUp(self):
-    helpers.patch(self, [
-        'clusterfuzz.common.execute',
-        'clusterfuzz.common.BlockStdin'
-    ])
+    helpers.patch(
+        self, ['clusterfuzz.common.execute', 'clusterfuzz.common.BlockStdin'])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_call(self):
@@ -385,7 +452,10 @@ class XdotoolCommandTest(helpers.ExtendedTestCase):
     self.reproducer.xdotool_command('command to run', ':2753')
     self.assert_exact_calls(self.mock.execute, [
         mock.call(
-            'xdotool', 'command to run', '.', env={'DISPLAY': ':2753'},
+            'xdotool',
+            'command to run',
+            '.',
+            env={'DISPLAY': ':2753'},
             stdin=self.mock.BlockStdin.return_value)
     ])
 
@@ -396,8 +466,8 @@ class FindWindowsForProcessTest(helpers.ExtendedTestCase):
   def setUp(self):
     helpers.patch(self, [
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.get_process_ids',
-        'clusterfuzz.common.execute',
-        'time.sleep'])
+        'clusterfuzz.common.execute', 'time.sleep'
+    ])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_no_pids(self):
@@ -424,8 +494,7 @@ class GetProcessIdsTest(helpers.ExtendedTestCase):
   """Tests the get_process_ids method."""
 
   def setUp(self):
-    helpers.patch(self, ['psutil.Process',
-                         'psutil.pid_exists'])
+    helpers.patch(self, ['psutil.Process', 'psutil.pid_exists'])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_process_not_running(self):
@@ -441,8 +510,9 @@ class GetProcessIdsTest(helpers.ExtendedTestCase):
 
     self.mock.pid_exists.return_value = True
     psutil_handle = mock.Mock()
-    psutil_handle.children.return_value = [mock.Mock(pid=123),
-                                           mock.Mock(pid=456)]
+    psutil_handle.children.return_value = [
+        mock.Mock(pid=123), mock.Mock(pid=456)
+    ]
     self.mock.Process.return_value = psutil_handle
 
     result = self.reproducer.get_process_ids(1234)
@@ -471,12 +541,14 @@ class RunGesturesTest(helpers.ExtendedTestCase):
         ('clusterfuzz.reproducers.LinuxChromeJobReproducer.find_windows_for'
          '_process'),
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.xdotool_command',
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.execute_gesture'])
+        'clusterfuzz.reproducers.LinuxChromeJobReproducer.execute_gesture'
+    ])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.mock.get_gesture_start_time.return_value = 5
     self.mock.find_windows_for_process.return_value = ['123']
-    self.reproducer.gestures = ['windowsize,2', 'type,\'ValeM1khbW4Gt!\'',
-                                'Trigger:2']
+    self.reproducer.gestures = [
+        'windowsize,2', 'type,\'ValeM1khbW4Gt!\'', 'Trigger:2'
+    ]
     self.reproducer.gesture_start_time = 5
 
   def test_execute_gestures(self):
@@ -484,8 +556,9 @@ class RunGesturesTest(helpers.ExtendedTestCase):
 
     self.reproducer.run_gestures(mock.Mock(pid=1234), ':display')
 
-    self.assert_exact_calls(self.mock.xdotool_command, [
-        mock.call(self.reproducer, 'windowactivate --sync 123', ':display')])
+    self.assert_exact_calls(
+        self.mock.xdotool_command,
+        [mock.call(self.reproducer, 'windowactivate --sync 123', ':display')])
     self.assert_exact_calls(self.mock.sleep, [mock.call(5)])
 
 
@@ -496,8 +569,9 @@ class GetGestureStartTimeTest(helpers.ExtendedTestCase):
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
 
   def test_with_trigger(self):
-    self.reproducer.gestures = ['windowsize,2', 'type,\'ValeM1khbW4Gt!\'',
-                                'Trigger:2']
+    self.reproducer.gestures = [
+        'windowsize,2', 'type,\'ValeM1khbW4Gt!\'', 'Trigger:2'
+    ]
     result = self.reproducer.get_gesture_start_time()
     self.assertEqual(result, 2)
 
@@ -511,8 +585,9 @@ class ExecuteGestureTest(helpers.ExtendedTestCase):
   """Test the execute_gesture method."""
 
   def setUp(self):
-    helpers.patch(self, [
-        'clusterfuzz.reproducers.LinuxChromeJobReproducer.xdotool_command'])
+    helpers.patch(
+        self,
+        ['clusterfuzz.reproducers.LinuxChromeJobReproducer.xdotool_command'])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
     self.reproducer.gestures = ['windowsize,2', 'type,\'ValeM1khbW4Gt!\'']
 
@@ -524,85 +599,87 @@ class ExecuteGestureTest(helpers.ExtendedTestCase):
 
     self.assert_exact_calls(self.mock.xdotool_command, [
         mock.call(self.reproducer, 'windowsize 12345 2', ':display'),
-        mock.call(self.reproducer, 'type -- \'ValeM1khbW4Gt!\'', ':display')])
+        mock.call(self.reproducer, 'type -- \'ValeM1khbW4Gt!\'', ':display')
+    ])
 
 
 class XvfbTest(helpers.ExtendedTestCase):
   """Used to test the Xvfb context manager."""
 
   def setUp(self):
-    helpers.patch(self, ['xvfbwrapper.Xvfb',
-                         'subprocess.Popen',
-                         'time.sleep'])
+    helpers.patch(self, ['xvfbwrapper.Xvfb', 'subprocess.Popen', 'time.sleep'])
 
   def test_correct_oserror_exception(self):
     """Ensures the correct exception is raised when Xvfb is not found."""
 
     def _raise_with_message(*_unused, **_kwunused):
-      del _unused, _kwunused #Not used by this method
+      del _unused, _kwunused  #Not used by this method
       raise OSError('[Errno 2] No such file or directory')
 
     self.mock.Popen.side_effect = _raise_with_message
-    self.mock.Xvfb.return_value = mock.Mock(xvfb_cmd=['not_display',
-                                                      ':display'])
+    self.mock.Xvfb.return_value = mock.Mock(
+        xvfb_cmd=['not_display', ':display'])
 
     with self.assertRaises(error.NotInstalledError):
       with reproducers.Xvfb(False) as display_name:
         self.assertNotEqual(display_name, ':display')
 
-    self.assert_n_calls(0, [self.mock.Popen.return_value.kill,
-                            self.mock.sleep,
-                            self.mock.Xvfb.return_value.stop])
+    self.assert_n_calls(0, [
+        self.mock.Popen.return_value.kill, self.mock.sleep,
+        self.mock.Xvfb.return_value.stop
+    ])
 
   def test_incorrect_oserror_exception(self):
     """Ensures OSError raises when message is not Errno 2."""
 
     self.mock.Popen.side_effect = OSError
-    self.mock.Xvfb.return_value = mock.Mock(xvfb_cmd=['not_display',
-                                                      ':display'])
+    self.mock.Xvfb.return_value = mock.Mock(
+        xvfb_cmd=['not_display', ':display'])
 
     with self.assertRaises(OSError):
       with reproducers.Xvfb(False) as display_name:
         self.assertNotEqual(display_name, ':display')
 
-    self.assert_n_calls(0, [self.mock.Popen.return_value.kill,
-                            self.mock.sleep,
-                            self.mock.Xvfb.return_value.stop])
+    self.assert_n_calls(0, [
+        self.mock.Popen.return_value.kill, self.mock.sleep,
+        self.mock.Xvfb.return_value.stop
+    ])
 
   def test_start_stop_blackbox(self):
     """Tests that the context manager starts/stops xvfbwrapper and blackbox."""
 
-    self.mock.Xvfb.return_value = mock.Mock(xvfb_cmd=['not_display',
-                                                      ':display'])
+    self.mock.Xvfb.return_value = mock.Mock(
+        xvfb_cmd=['not_display', ':display'])
 
     with reproducers.Xvfb(False) as display_name:
       self.assertEqual(display_name, ':display')
 
-    self.assert_exact_calls(self.mock.Xvfb, [mock.call(
-        width=1280, height=1024)])
+    self.assert_exact_calls(self.mock.Xvfb,
+                            [mock.call(width=1280, height=1024)])
     self.assert_exact_calls(self.mock.Xvfb.return_value.start, [mock.call()])
     self.assert_exact_calls(self.mock.Xvfb.return_value.stop,
                             [mock.call.stop()])
-    self.assert_exact_calls(self.mock.Popen, [
-        mock.call(['blackbox'], env={'DISPLAY': ':display'})])
+    self.assert_exact_calls(
+        self.mock.Popen, [mock.call(['blackbox'], env={
+            'DISPLAY': ':display'
+        })])
     self.assert_exact_calls(self.mock.Popen.return_value.kill, [mock.call()])
     self.assert_exact_calls(self.mock.sleep, [mock.call(3)])
 
   def test_no_blackbox(self):
     """Tests that the manager doesnt start blackbox when disabled."""
 
-    self.mock.Xvfb.return_value = mock.Mock(xvfb_cmd=['not_display',
-                                                      ':display'])
+    self.mock.Xvfb.return_value = mock.Mock(
+        xvfb_cmd=['not_display', ':display'])
 
     with reproducers.Xvfb(True) as display_name:
       self.assertEqual(display_name, None)
 
-    self.assert_n_calls(0, [self.mock.Xvfb,
-                            self.mock.Xvfb.return_value.start,
-                            self.mock.Xvfb.return_value.stop,
-                            self.mock.Popen,
-                            self.mock.Popen.return_value.kill,
-                            self.mock.sleep])
+    self.assert_n_calls(0, [
+        self.mock.Xvfb, self.mock.Xvfb.return_value.start,
+        self.mock.Xvfb.return_value.stop, self.mock.Popen,
+        self.mock.Popen.return_value.kill, self.mock.sleep
+    ])
 
 
 class ReproduceTest(helpers.ExtendedTestCase):
@@ -645,8 +722,8 @@ class ReproduceNormalTest(helpers.ExtendedTestCase):
     helpers.patch(self, [
         'clusterfuzz.reproducers.LinuxChromeJobReproducer.reproduce_crash',
         'clusterfuzz.reproducers.symbolize',
-        'clusterfuzz.reproducers.get_crash_signature',
-        'time.sleep'])
+        'clusterfuzz.reproducers.get_crash_signature', 'time.sleep'
+    ])
     self.mock.reproduce_crash.return_value = (0, 'stuff')
     self.mock.symbolize.return_value = 'stuff'
     self.reproducer.get_crash_signature = lambda: common.CrashSignature(
@@ -678,7 +755,8 @@ class ReproduceNormalTest(helpers.ExtendedTestCase):
 
     self.assertTrue(self.reproducer.reproduce_normal(10))
     self.assert_exact_calls(self.mock.reproduce_crash, [
-        mock.call(self.reproducer), mock.call(self.reproducer),
+        mock.call(self.reproducer),
+        mock.call(self.reproducer),
         mock.call(self.reproducer)
     ])
 
@@ -726,16 +804,17 @@ class SymbolizeTest(helpers.ExtendedTestCase):
         '/path/to/chromium/tools/valgrind/asan/asan_symbolize.py',
         '',
         os.path.expanduser('~'),
-        env={'LLVM_SYMBOLIZER_PATH': 'asan_sym_proxy.py',
-             'CHROMIUM_SRC': '/path/to/chromium'},
+        env={
+            'LLVM_SYMBOLIZER_PATH': 'asan_sym_proxy.py',
+            'CHROMIUM_SRC': '/path/to/chromium'
+        },
         stdout_transformer=mock.ANY,
         capture_output=True,
         exit_on_error=True,
         stdin=self.mock.StringStdin.return_value,
         redirect_stderr_to_stdout=True)
-    self.assertIsInstance(
-        self.mock.execute.call_args[1]['stdout_transformer'],
-        output_transformer.Identity)
+    self.assertIsInstance(self.mock.execute.call_args[1]['stdout_transformer'],
+                          output_transformer.Identity)
     self.mock.StringStdin.assert_called_once_with('output_lines\0')
     self.assertEqual(result, 'symbolized')
 
@@ -745,9 +824,9 @@ class StripHtmlTest(helpers.ExtendedTestCase):
 
   def test_strip_html(self):
     """Test strip <a> tag."""
-    self.assertEqual(
-        ['aa test &'],
-        reproducers.strip_html(['aa <a href="sadfsd">test</a> &amp;']))
+    self.assertEqual(['aa test &'],
+                     reproducers.strip_html(
+                         ['aa <a href="sadfsd">test</a> &amp;']))
 
 
 class GetOnlyFirstStacktraceTest(helpers.ExtendedTestCase):
@@ -755,21 +834,17 @@ class GetOnlyFirstStacktraceTest(helpers.ExtendedTestCase):
 
   def test_one_trace(self):
     """Test having only one trace."""
-    self.assertEqual(
-        ['aa', 'bb'],
-        reproducers.get_only_first_stacktrace(['  ', 'aa  ', 'bb']))
+    self.assertEqual(['aa', 'bb'],
+                     reproducers.get_only_first_stacktrace(['  ', 'aa  ',
+                                                            'bb']))
 
   def test_unsymbolized_stacktrace(self):
     """Test unsymbolized stacktrace."""
     self.assertEqual(
         ['+------- fake trace ----+', 'aa', 'bb'],
         reproducers.get_only_first_stacktrace([
-            '   ',
-            '+------- fake trace ----+',
-            'aa',
-            'bb',
-            '+------Release Build Unsymbolized Stacktrace (diff)------+',
-            'cc'
+            '   ', '+------- fake trace ----+', 'aa', 'bb',
+            '+------Release Build Unsymbolized Stacktrace (diff)------+', 'cc'
         ]))
 
 
@@ -782,10 +857,8 @@ class LibfuzzerJobReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
     reproducer.args = '-aaa=bbb -dict=/a/b/c/fuzzer.dict -ccc=ddd'
     reproducer.pre_build_steps()
 
-    self.assertEqual(
-        '-aaa=bbb -ccc=ddd -dict=/fake/build_dir/fuzzer.dict'
-        ' --test /fake/testcase_dir/testcase',
-        reproducer.args)
+    self.assertEqual('-aaa=bbb -ccc=ddd -dict=/fake/build_dir/fuzzer.dict'
+                     ' --test /fake/testcase_dir/testcase', reproducer.args)
 
 
 class DeserializeLibfuzzerArgsTest(helpers.ExtendedTestCase):
@@ -797,10 +870,11 @@ class DeserializeLibfuzzerArgsTest(helpers.ExtendedTestCase):
 
   def test_parse(self):
     """Test parsing."""
-    self.assertEqual(
-        {'aaa': 'bbb', 'ccc': 'ddd', 'eee': 'fff'},
-        reproducers.deserialize_libfuzzer_args(' -aaa=bbb   -ccc=ddd  -eee=fff')
-    )
+    self.assertEqual({
+        'aaa': 'bbb',
+        'ccc': 'ddd',
+        'eee': 'fff'
+    }, reproducers.deserialize_libfuzzer_args(' -aaa=bbb   -ccc=ddd  -eee=fff'))
 
 
 class SerializeLibfuzzerArgsTest(helpers.ExtendedTestCase):
@@ -812,11 +886,12 @@ class SerializeLibfuzzerArgsTest(helpers.ExtendedTestCase):
 
   def test_serialize(self):
     """Test serializing."""
-    self.assertEqual(
-        '-aaa=bbb -ccc=ddd -eee=fff',
-        reproducers.serialize_libfuzzer_args(
-            {'aaa': 'bbb', 'eee': 'fff', 'ccc': 'ddd'})
-    )
+    self.assertEqual('-aaa=bbb -ccc=ddd -eee=fff',
+                     reproducers.serialize_libfuzzer_args({
+                         'aaa': 'bbb',
+                         'eee': 'fff',
+                         'ccc': 'ddd'
+                     }))
 
 
 class MaybeFixDictArgTest(helpers.ExtendedTestCase):
@@ -829,10 +904,16 @@ class MaybeFixDictArgTest(helpers.ExtendedTestCase):
 
   def test_dict_arg(self):
     """Test fix dict arg."""
-    args = reproducers.maybe_fix_dict_args(
-        {'aaa': 'bbb', 'dict': '/a/b/c/fuzzer.dict', 'c': 'd'}, '/fake/path')
-    self.assertEqual(
-        {'aaa': 'bbb', 'dict': '/fake/path/fuzzer.dict', 'c': 'd'}, args)
+    args = reproducers.maybe_fix_dict_args({
+        'aaa': 'bbb',
+        'dict': '/a/b/c/fuzzer.dict',
+        'c': 'd'
+    }, '/fake/path')
+    self.assertEqual({
+        'aaa': 'bbb',
+        'dict': '/fake/path/fuzzer.dict',
+        'c': 'd'
+    }, args)
 
 
 class IsSimilarTest(helpers.ExtendedTestCase):
@@ -840,33 +921,41 @@ class IsSimilarTest(helpers.ExtendedTestCase):
 
   def test_not_similar(self):
     """Test not similar."""
-    self.assertFalse(reproducers.is_similar(
-        common.CrashSignature('t', ['a']),
-        common.CrashSignature('z', ['b'])))
-    self.assertFalse(reproducers.is_similar(
-        common.CrashSignature('t', ['a', 'b']),
-        common.CrashSignature('t', ['a', 'c', 'd'])))
-    self.assertFalse(reproducers.is_similar(
-        common.CrashSignature('t', ['a']),
-        common.CrashSignature('t', ['a', 'c', 'b'])))
+    self.assertFalse(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a']), common.CrashSignature(
+                'z', ['b'])))
+    self.assertFalse(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a', 'b']),
+            common.CrashSignature('t', ['a', 'c', 'd'])))
+    self.assertFalse(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a']),
+            common.CrashSignature('t', ['a', 'c', 'b'])))
 
   def test_similar(self):
     """Test similar."""
-    self.assertTrue(reproducers.is_similar(
-        common.CrashSignature('t', ['a']),
-        common.CrashSignature('z', ['a'])))
-    self.assertTrue(reproducers.is_similar(
-        common.CrashSignature('t', ['a', 'b']),
-        common.CrashSignature('t', ['a', 'c'])))
-    self.assertTrue(reproducers.is_similar(
-        common.CrashSignature('t', ['a']),
-        common.CrashSignature('t', ['a', 'c'])))
-    self.assertTrue(reproducers.is_similar(
-        common.CrashSignature('t', ['a', 'b', 'd']),
-        common.CrashSignature('t', ['a', 'b', 'c'])))
-    self.assertTrue(reproducers.is_similar(
-        common.CrashSignature('t', ['a', 'b']),
-        common.CrashSignature('t', ['a', 'b', 'c'])))
+    self.assertTrue(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a']), common.CrashSignature(
+                'z', ['a'])))
+    self.assertTrue(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a', 'b']),
+            common.CrashSignature('t', ['a', 'c'])))
+    self.assertTrue(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a']),
+            common.CrashSignature('t', ['a', 'c'])))
+    self.assertTrue(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a', 'b', 'd']),
+            common.CrashSignature('t', ['a', 'b', 'c'])))
+    self.assertTrue(
+        reproducers.is_similar(
+            common.CrashSignature('t', ['a', 'b']),
+            common.CrashSignature('t', ['a', 'b', 'c'])))
 
 
 class EnsureUserDataDirIfNeededTest(helpers.ExtendedTestCase):
@@ -879,9 +968,9 @@ class EnsureUserDataDirIfNeededTest(helpers.ExtendedTestCase):
 
   def test_doing_nothing(self):
     """Test doing nothing."""
-    self.assertEqual(
-        '--something',
-        reproducers.ensure_user_data_dir_if_needed('--something', False))
+    self.assertEqual('--something',
+                     reproducers.ensure_user_data_dir_if_needed(
+                         '--something', False))
 
   def test_add_because_it_should(self):
     """Test adding arg because it should have."""
@@ -910,32 +999,26 @@ class UpdateTestcasePathInLayoutTestTest(helpers.ExtendedTestCase):
 
   def test_doing_nothing(self):
     """Test doing nothing."""
-    self.assertEqual(
-        '/testpath/testcase',
-        reproducers.update_testcase_path_in_layout_test(
-            '/testpath/testcase', '/original/testcase', '/source', 100))
-    self.assertEqual(
-        '/testcase_dir/testcase',
-        reproducers.update_testcase_path_in_layout_test(
-            '/testcase_dir/testcase',
-            '/original/LayoutTests/original_dir/original_file',
-            '/source/',
-            reproducers.LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS + 100)
-    )
+    self.assertEqual('/testpath/testcase',
+                     reproducers.update_testcase_path_in_layout_test(
+                         '/testpath/testcase', '/original/testcase', '/source',
+                         100))
+    self.assertEqual('/testcase_dir/testcase',
+                     reproducers.update_testcase_path_in_layout_test(
+                         '/testcase_dir/testcase',
+                         '/original/LayoutTests/original_dir/original_file',
+                         '/source/',
+                         reproducers.LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS + 100))
 
   def test_update(self):
     """Update the testcase path."""
     new_path = (
         '/source/third_party/WebKit/LayoutTests/original_dir/original_file')
-    self.assertEqual(
-        new_path,
-        reproducers.update_testcase_path_in_layout_test(
-            '/testcase_dir/testcase',
-            '/original/LayoutTests/original_dir/original_file',
-            '/source/',
-            100
-        )
-    )
+    self.assertEqual(new_path,
+                     reproducers.update_testcase_path_in_layout_test(
+                         '/testcase_dir/testcase',
+                         '/original/LayoutTests/original_dir/original_file',
+                         '/source/', 100))
     with open(new_path) as f:
       self.assertEqual('Some test', f.read())
 
@@ -945,9 +1028,8 @@ class UpdateForGdbIfNeededTest(helpers.ExtendedTestCase):
 
   def test_no_update(self):
     """Test no update."""
-    self.assertEqual(
-        ('b', 'a', 30),
-        reproducers.update_for_gdb_if_needed('b', 'a', 30, False))
+    self.assertEqual(('b', 'a', 30),
+                     reproducers.update_for_gdb_if_needed('b', 'a', 30, False))
 
   def test_update(self):
     """Test update."""
@@ -968,9 +1050,8 @@ class BaseReproducerGetCrashSignatureTest(helpers.ExtendedTestCase):
     """Test getting crash signature."""
     self.mock.get_crash_signature.return_value = common.CrashSignature('t', [])
     self.reproducer = create_reproducer(reproducers.LinuxChromeJobReproducer)
-    self.assertEqual(
-        self.mock.get_crash_signature.return_value,
-        self.reproducer.get_crash_signature())
+    self.assertEqual(self.mock.get_crash_signature.return_value,
+                     self.reproducer.get_crash_signature())
 
     self.mock.get_crash_signature.assert_called_once_with(
         self.reproducer.testcase.job_type, 'line')
@@ -988,9 +1069,8 @@ class BaseReproducerGetTestcaseUrlTest(helpers.ExtendedTestCase):
     """Tests getting testcase URL."""
     self.mock.get_testcase_path.return_value = '/sdcard/testcase.html'
     self.reproducer = create_reproducer(reproducers.BaseReproducer)
-    self.assertEqual(
-        'file:///sdcard/testcase.html',
-        self.reproducer.get_testcase_url())
+    self.assertEqual('file:///sdcard/testcase.html',
+                     self.reproducer.get_testcase_url())
 
     self.mock.get_testcase_path.assert_called_once_with(self.reproducer)
 
@@ -1006,23 +1086,25 @@ class GetCrashSignatureTest(helpers.ExtendedTestCase):
     self.mock.post.return_value = mock.Mock(
         text=json.dumps({
             'crash_state': 'original\nstate',
-            'crash_type': 'original_type'})
-    )
+            'crash_type': 'original_type'
+        }))
     self.assertEqual(
         common.CrashSignature('original_type', ['original', 'state']),
         reproducers.get_crash_signature('job', 'raw_stacktrace'))
     self.mock.post.assert_called_once_with(
         url='https://clusterfuzz.com/v2/parse_stacktrace',
-        data=json.dumps({'job': 'job', 'stacktrace': 'raw_stacktrace'})
-    )
+        data=json.dumps({
+            'job': 'job',
+            'stacktrace': 'raw_stacktrace'
+        }))
+
 
 class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
   """Tests methods in AndroidChromeReproducer."""
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.android.adb',
-        'clusterfuzz.android.adb_shell',
+        'clusterfuzz.android.adb', 'clusterfuzz.android.adb_shell',
         'clusterfuzz.reproducers.set_device_id_if_possible'
     ])
     self.reproducer = create_reproducer(reproducers.AndroidChromeReproducer)
@@ -1052,9 +1134,8 @@ class AndroidChromeReproducerTest(helpers.ExtendedTestCase):
 
   def test_get_testcase_path(self):
     """Tests AndroidChromeReproducer.get_testcase_path."""
-    self.assertEqual(
-        '%s/1234/mnt/test.html' % reproducers.ANDROID_TESTCASE_DIR,
-        self.reproducer.get_testcase_path())
+    self.assertEqual('%s/1234/mnt/test.html' % reproducers.ANDROID_TESTCASE_DIR,
+                     self.reproducer.get_testcase_path())
     self.mock.adb.assert_called_once_with(
         'push /something %s/1234' % reproducers.ANDROID_TESTCASE_DIR)
     self.mock.adb_shell.assert_called_once_with(
@@ -1098,9 +1179,8 @@ class AndroidChromeReproducerPreBuildStepsTest(helpers.ExtendedTestCase):
     self.mock.install.assert_called_once_with(self.reproducer.binary_path)
     self.assert_exact_calls(self.mock.write_content, [
         mock.call('test-file', 'content'),
-        mock.call(
-            '/data/local/tmp/chrome-command-line',
-            'chrome %s' % self.reproducer.args)
+        mock.call('/data/local/tmp/chrome-command-line',
+                  'chrome %s' % self.reproducer.args)
     ])
 
 
@@ -1173,10 +1253,8 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
 
   def setUp(self):
     helpers.patch(self, [
-        'clusterfuzz.android.adb',
-        'clusterfuzz.android.adb_shell',
-        'clusterfuzz.android.install',
-        'clusterfuzz.android.uninstall'
+        'clusterfuzz.android.adb', 'clusterfuzz.android.adb_shell',
+        'clusterfuzz.android.install', 'clusterfuzz.android.uninstall'
     ])
 
   def test_install(self):
@@ -1185,9 +1263,8 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
     self.reproducer.install()
 
     self.assert_exact_calls(self.mock.adb_shell, [
-        mock.call(
-            'setprop persist.sys.webview.vmsize %s' %
-            reproducers.SYSTEM_WEBVIEW_VMSIZE_BYTES),
+        mock.call('setprop persist.sys.webview.vmsize %s' %
+                  reproducers.SYSTEM_WEBVIEW_VMSIZE_BYTES),
         mock.call('stop'),
         mock.call('rm -rf %s' % ' '.join(reproducers.SYSTEM_WEBVIEW_DIRS)),
         mock.call('start')
@@ -1197,9 +1274,10 @@ class AndroidWebViewReproducerTest(helpers.ExtendedTestCase):
         mock.call(self.reproducer.testcase.android_package_name)
     ])
     self.assert_exact_calls(self.mock.install, [
-        mock.call(os.path.join(
-            os.path.dirname(self.reproducer.binary_path),
-            reproducers.SYSTEM_WEBVIEW_APK)),
+        mock.call(
+            os.path.join(
+                os.path.dirname(self.reproducer.binary_path),
+                reproducers.SYSTEM_WEBVIEW_APK)),
         mock.call(self.reproducer.binary_path)
     ])
 
@@ -1208,29 +1286,23 @@ class SetDeviceIdIfPossibleTest(helpers.ExtendedTestCase):
   """Tests set_device_id_if_possible."""
 
   def setUp(self):
-    helpers.patch(self, [
-        'clusterfuzz.android.adb'
-    ])
+    helpers.patch(self, ['clusterfuzz.android.adb'])
     self.mock_os_environment({})
 
   def test_get(self):
     """Tests getting device id."""
-    self.mock.adb.return_value = (
-        0,
-        ('List of devices attached\n'
-         '06c02c4b003b806f       device\n'))
+    self.mock.adb.return_value = (0, ('List of devices attached\n'
+                                      '06c02c4b003b806f       device\n'))
     reproducers.set_device_id_if_possible()
-    self.assertEqual(
-        '06c02c4b003b806f', os.environ.get(reproducers.ANDROID_SERIAL_ENV))
+    self.assertEqual('06c02c4b003b806f',
+                     os.environ.get(reproducers.ANDROID_SERIAL_ENV))
     self.mock.adb.assert_called_once_with('devices')
 
   def test_multiple(self):
     """Tests not getting device id because there are multiple devices."""
-    self.mock.adb.return_value = (
-        0,
-        ('List of devices attached\n'
-         '06c02c4b003b806f       device\n'
-         'ZX1SDGWE       device\n'))
+    self.mock.adb.return_value = (0, ('List of devices attached\n'
+                                      '06c02c4b003b806f       device\n'
+                                      'ZX1SDGWE       device\n'))
     reproducers.set_device_id_if_possible()
     self.assertIsNone(os.environ.get(reproducers.ANDROID_SERIAL_ENV))
     self.mock.adb.assert_called_once_with('devices')
@@ -1272,5 +1344,5 @@ class RunMonkeyGesturesIfNeededTest(helpers.ExtendedTestCase):
     reproducers.run_monkey_gestures_if_needed('package', ['monkey,123'])
     self.mock.adb_shell.assert_called_once_with(
         'monkey -p package -s 123 --throttle %s '
-        '--ignore-security-exceptions %s' %
-        (reproducers.MONKEY_THROTTLE_DELAY, reproducers.NUM_MONKEY_EVENTS))
+        '--ignore-security-exceptions %s' % (reproducers.MONKEY_THROTTLE_DELAY,
+                                             reproducers.NUM_MONKEY_EVENTS))

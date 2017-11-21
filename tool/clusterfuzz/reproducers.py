@@ -31,7 +31,6 @@ from clusterfuzz import common
 from clusterfuzz import output_transformer
 from error import error
 
-
 DISABLE_GL_DRAW_ARG = '--disable-gl-drawing-for-tests'
 DEFAULT_GESTURE_TIME = 5
 TEST_TIMEOUT = 30
@@ -47,8 +46,8 @@ SYSTEM_WEBVIEW_VMSIZE_BYTES = 250 * 1000 * 1000
 SYSTEM_WEBVIEW_APK = 'SystemWebViewGoogle.apk'
 
 # A testcase created after 6 Aug 2017 doesn't need the layout test hack.
-LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS = time.mktime(
-    (2017, 8, 11, 0, 0, 0, 0, 0, 0))
+LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS = time.mktime((2017, 8, 11, 0, 0, 0, 0, 0,
+                                                  0))
 
 MONKEY_THROTTLE_DELAY = 100
 NUM_MONKEY_EVENTS = 50
@@ -156,9 +155,8 @@ def ensure_user_data_dir_if_needed(args, require_user_data_dir):
 
 
 # TODO(#463): Remove on 11 Nov 2017.
-def update_testcase_path_in_layout_test(
-    testcase_path, original_testcase_path, source_directory,
-    testcase_created_at):
+def update_testcase_path_in_layout_test(testcase_path, original_testcase_path,
+                                        source_directory, testcase_created_at):
   """Update the testcase path if it's a layout test."""
   search_string = '%sLayoutTests%s' % (os.sep, os.sep)
   if (testcase_created_at >= LAYOUT_HACK_CUTOFF_DATE_IN_SECONDS or
@@ -187,7 +185,10 @@ def get_crash_signature(job_type, raw_stacktrace):
   """Get crash signature from raw_stacktrace by asking ClusterFuzz."""
   response = common.post(
       url='https://clusterfuzz.com/v2/parse_stacktrace',
-      data=json.dumps({'job': job_type, 'stacktrace': raw_stacktrace}))
+      data=json.dumps({
+          'job': job_type,
+          'stacktrace': raw_stacktrace
+      }))
   response = json.loads(response.text)
   crash_state_lines = tuple(
       [x for x in response['crash_state'].split('\n') if x])
@@ -204,16 +205,21 @@ def symbolize(output, source_dir_path):
     return ''
 
   asan_symbolizer_location = os.path.join(
-      source_dir_path, os.path.join(
-          'tools', 'valgrind', 'asan', 'asan_symbolize.py'))
-  symbolizer_proxy_location = common.get_resource(
-      0755, 'asan_symbolize_proxy.py')
+      source_dir_path,
+      os.path.join('tools', 'valgrind', 'asan', 'asan_symbolize.py'))
+  symbolizer_proxy_location = common.get_resource(0755,
+                                                  'asan_symbolize_proxy.py')
 
   _, symbolized_out = common.execute(
-      asan_symbolizer_location, '', os.path.expanduser('~'),
-      env={'LLVM_SYMBOLIZER_PATH': symbolizer_proxy_location,
-           'CHROMIUM_SRC': source_dir_path},
-      capture_output=True, exit_on_error=True,
+      asan_symbolizer_location,
+      '',
+      os.path.expanduser('~'),
+      env={
+          'LLVM_SYMBOLIZER_PATH': symbolizer_proxy_location,
+          'CHROMIUM_SRC': source_dir_path
+      },
+      capture_output=True,
+      exit_on_error=True,
       stdout_transformer=output_transformer.Identity(),
       stdin=common.StringStdin(output + '\0'),
       redirect_stderr_to_stdout=True)
@@ -280,13 +286,13 @@ class BaseReproducer(object):
     self.binary_path = binary_provider.get_binary_path()
     self.build_directory = binary_provider.get_build_dir_path()
     self.source_directory = binary_provider.get_source_dir_path()
-    self.symbolizer_path = common.get_resource(
-        0755, 'resources', 'llvm-symbolizer')
+    self.symbolizer_path = common.get_resource(0755, 'resources',
+                                               'llvm-symbolizer')
     self.gestures = testcase.gestures
     self.timeout = TEST_TIMEOUT
 
-    self.gesture_start_time = (self.get_gesture_start_time() if self.gestures
-                               else None)
+    self.gesture_start_time = (
+        self.get_gesture_start_time() if self.gestures else None)
 
   def set_up_symbolizers_suppressions(self):
     """Sets up the symbolizer variables for an environment."""
@@ -304,9 +310,10 @@ class BaseReproducer(object):
       options.pop('coverage_dir', None)
       if 'suppressions' in options:
         suppressions_map = {
-            'UBSAN_OPTIONS': 'ubsan',
+            'CFI_OPTIONS': 'ubsan',
             'LSAN_OPTIONS': 'lsan',
             'TSAN_OPTIONS': 'tsan',
+            'UBSAN_OPTIONS': 'ubsan',
         }
         filename = common.get_resource(
             0640, 'resources', 'suppressions',
@@ -328,9 +335,12 @@ class BaseReproducer(object):
     # read_buffer_length needs to be 1, and stdin needs to be UserStdin.
     # Otherwise, it wouldn't work well with gdb.
     return common.execute(
-        self.binary_path, self.args,
-        self.build_directory, env=self.environment,
-        exit_on_error=False, timeout=self.timeout,
+        self.binary_path,
+        self.args,
+        self.build_directory,
+        env=self.environment,
+        exit_on_error=False,
+        timeout=self.timeout,
         stdout_transformer=output_transformer.Identity(),
         redirect_stderr_to_stdout=True,
         stdin=common.UserStdin(),
@@ -367,8 +377,7 @@ class BaseReproducer(object):
     # When running in regular mode, user would want to see screen, so
     # remove this argument.
     # TODO(tanin): refactor the condition to its own module function.
-    if (self.options.disable_xvfb and
-        DISABLE_GL_DRAW_ARG in self.args):
+    if (self.options.disable_xvfb and DISABLE_GL_DRAW_ARG in self.args):
       self.args = self.args.replace(' %s' % DISABLE_GL_DRAW_ARG, '')
       self.args = self.args.replace(DISABLE_GL_DRAW_ARG, '')
 
@@ -380,15 +389,16 @@ class BaseReproducer(object):
     if '%TESTCASE%' in self.args:
       self.args = self.args.replace('%TESTCASE%', self.get_testcase_path())
     elif '%TESTCASE_FILE_URL%' in self.args:
-      self.args = self.args.replace(
-          '%TESTCASE_FILE_URL%', self.get_testcase_path())
+      self.args = self.args.replace('%TESTCASE_FILE_URL%',
+                                    self.get_testcase_path())
     else:
       self.args += ' %s' % self.get_testcase_path()
 
     self.binary_path, self.args, self.timeout = update_for_gdb_if_needed(
         self.binary_path, self.args, self.timeout, self.options.enable_debug)
     self.args = common.edit_if_needed(
-        self.args, prefix='edit-args-',
+        self.args,
+        prefix='edit-args-',
         comment='Edit arguments before running %s' % self.binary_path,
         should_edit=self.options.edit_mode)
 
@@ -409,32 +419,32 @@ class BaseReproducer(object):
       new_signature.output = output
       signatures.add(new_signature)
 
-      has_signature = (bool(new_signature.crash_type) or
-                       bool(new_signature.crash_state_lines))
-      logger.info(
-          'New crash type: %s\n'
-          'New crash state:\n  %s\n\n'
-          'Original crash type: %s\n'
-          'Original crash state:\n  %s\n',
-          new_signature.crash_type,
-          '\n  '.join(new_signature.crash_state_lines),
-          self.get_crash_signature().crash_type,
-          '\n  '.join(self.get_crash_signature().crash_state_lines))
+      has_signature = (
+          bool(new_signature.crash_type) or
+          bool(new_signature.crash_state_lines))
+      logger.info('New crash type: %s\n'
+                  'New crash state:\n  %s\n\n'
+                  'Original crash type: %s\n'
+                  'Original crash state:\n  %s\n', new_signature.crash_type,
+                  '\n  '.join(new_signature.crash_state_lines),
+                  self.get_crash_signature().crash_type, '\n  '.join(
+                      self.get_crash_signature().crash_state_lines))
 
       # The crash signature validation is intentionally forgiving.
       if is_similar(new_signature, self.get_crash_signature()):
-        logger.info(common.colorize(
-            'The stacktrace seems similar to the original stacktrace.\n'
-            "Since you've reproduced the crash correctly, there are some "
-            'tricks that might help you move faster:\n'
-            '- In case of fixing the crash, you can use `--current` to run on '
-            'tip-of-tree (or, in other words, avoid git-checkout).\n'
-            '- You can save time by using `--skip-deps` to avoid '
-            '`gclient sync`, `gclient runhooks`, and other dependency '
-            'installations in subsequential runs.\n'
-            '- You can debug with gdb using `--enable-debug`.\n'
-            '- You can modify args.gn and arguments using `--edit-mode`.',
-            common.BASH_GREEN_MARKER))
+        logger.info(
+            common.colorize(
+                'The stacktrace seems similar to the original stacktrace.\n'
+                "Since you've reproduced the crash correctly, there are some "
+                'tricks that might help you move faster:\n'
+                '- In case of fixing the crash, you can use `--current` to run on '
+                'tip-of-tree (or, in other words, avoid git-checkout).\n'
+                '- You can save time by using `--skip-deps` to avoid '
+                '`gclient sync`, `gclient runhooks`, and other dependency '
+                'installations in subsequential runs.\n'
+                '- You can debug with gdb using `--enable-debug`.\n'
+                '- You can modify args.gn and arguments using `--edit-mode`.',
+                common.BASH_GREEN_MARKER))
         return True
       else:
         logger.info("The stacktrace doesn't match the original stacktrace.")
@@ -442,7 +452,6 @@ class BaseReproducer(object):
                     'reproduce.', iterations)
       iterations += 1
       time.sleep(3)
-
 
     if has_signature:
       raise error.DifferentStacktraceError(iteration_max, signatures)
@@ -491,8 +500,10 @@ class Xvfb(object):
         break
     logger.info('Starting the blackbox window manager in a virtual display.')
     try:
-      self.blackbox = subprocess.Popen(['blackbox'],
-                                       env={'DISPLAY': display_name})
+      self.blackbox = subprocess.Popen(
+          ['blackbox'], env={
+              'DISPLAY': display_name
+          })
     except OSError, e:
       if str(e) == '[Errno 2] No such file or directory':
         raise error.NotInstalledError('blackbox')
@@ -533,7 +544,10 @@ class LinuxChromeJobReproducer(BaseReproducer):
   def xdotool_command(self, command, display_name):
     """Run a command, returning its output."""
     common.execute(
-        'xdotool', command, '.', env={'DISPLAY': display_name},
+        'xdotool',
+        command,
+        '.',
+        env={'DISPLAY': display_name},
         stdin=common.BlockStdin())
 
   def find_windows_for_process(self, process_id, display_name):
@@ -542,17 +556,21 @@ class LinuxChromeJobReproducer(BaseReproducer):
     if not pids:
       return []
 
-    logger.info(
-        'Waiting for 30 seconds to ensure all windows appear: '
-        'pid=%s, display=%s', pids, display_name)
+    logger.info('Waiting for 30 seconds to ensure all windows appear: '
+                'pid=%s, display=%s', pids, display_name)
     time.sleep(30)
 
     visible_windows = set()
     for pid in pids:
       _, windows = common.execute(
-          'xdotool', 'search --all --pid %s --onlyvisible --name ".*"' % pid,
-          '.', env={'DISPLAY': display_name}, exit_on_error=False,
-          print_command=False, print_output=False, stdin=common.BlockStdin())
+          'xdotool',
+          'search --all --pid %s --onlyvisible --name ".*"' % pid,
+          '.',
+          env={'DISPLAY': display_name},
+          exit_on_error=False,
+          print_command=False,
+          print_output=False,
+          stdin=common.BlockStdin())
       for line in windows.splitlines():
         if not line.isdigit():
           continue
@@ -589,9 +607,8 @@ class LinuxChromeJobReproducer(BaseReproducer):
   def get_testcase_path(self):
     """Get testcase path."""
     return update_testcase_path_in_layout_test(
-        self.testcase.get_testcase_path(),
-        self.original_testcase_path, self.source_directory,
-        self.testcase.created_at)
+        self.testcase.get_testcase_path(), self.original_testcase_path,
+        self.source_directory, self.testcase.created_at)
 
   def pre_build_steps(self):
     """Steps to run before building."""
@@ -603,7 +620,6 @@ class LinuxChromeJobReproducer(BaseReproducer):
     self.environment.pop('ASAN_SYMBOLIZER_PATH', None)
     super(LinuxChromeJobReproducer, self).pre_build_steps()
 
-
   def reproduce_crash(self):
     """Reproduce the crash, running gestures if necessary."""
 
@@ -612,8 +628,10 @@ class LinuxChromeJobReproducer(BaseReproducer):
 
       # stdin needs to be UserStdin. Otherwise, it wouldn't work with gdb.
       process = common.start_execute(
-          self.binary_path, self.args,
-          self.build_directory, env=self.environment,
+          self.binary_path,
+          self.args,
+          self.build_directory,
+          env=self.environment,
           stdin=common.UserStdin(),
           redirect_stderr_to_stdout=True)
 
@@ -623,7 +641,9 @@ class LinuxChromeJobReproducer(BaseReproducer):
       # read_buffer_length needs to be 1. Otherwise, it wouldn't work well with
       # gdb.
       err, out = common.wait_execute(
-          process, exit_on_error=False, timeout=self.timeout,
+          process,
+          exit_on_error=False,
+          timeout=self.timeout,
           stdout_transformer=output_transformer.Identity(),
           read_buffer_length=1)
       return err, symbolize(out, self.source_directory)
@@ -653,10 +673,10 @@ class AndroidChromeReproducer(BaseReproducer):
     android.adb_shell('rm -rf %s' % ANDROID_TESTCASE_DIR)
     android_testcase_dir = '%s/%s' % (ANDROID_TESTCASE_DIR, self.testcase.id)
 
-    testcase_relative_path = os.path.relpath(
-        self.testcase.get_testcase_path(), self.testcase.testcase_dir_path)
-    android.adb('push %s %s' % (
-        self.testcase.testcase_dir_path, android_testcase_dir))
+    testcase_relative_path = os.path.relpath(self.testcase.get_testcase_path(),
+                                             self.testcase.testcase_dir_path)
+    android.adb('push %s %s' % (self.testcase.testcase_dir_path,
+                                android_testcase_dir))
 
     return '%s/%s' % (android_testcase_dir, testcase_relative_path)
 
@@ -680,8 +700,8 @@ class AndroidChromeReproducer(BaseReproducer):
 
     for path, content in self.testcase.files.iteritems():
       android.write_content(path, content)
-    android.write_content(
-        self.testcase.command_line_file_path, 'chrome %s' % self.args)
+    android.write_content(self.testcase.command_line_file_path,
+                          'chrome %s' % self.args)
     self.install()
 
   def reproduce_crash(self):
@@ -701,8 +721,8 @@ class AndroidChromeReproducer(BaseReproducer):
         stdout_transformer=output_transformer.Identity())
     time.sleep(TEST_TIMEOUT)
 
-    run_monkey_gestures_if_needed(
-        self.testcase.android_package_name, self.testcase.gestures)
+    run_monkey_gestures_if_needed(self.testcase.android_package_name,
+                                  self.testcase.gestures)
 
     output = android.get_log()
     android.kill(self.testcase.android_package_name)
@@ -715,8 +735,7 @@ class AndroidChromeReproducer(BaseReproducer):
                 self.binary_provider.get_unstripped_lib_dir_path(),
                 self.binary_provider.get_android_libclang_dir_path()
             ],
-            lib_tmp_dir_path=lib_tmp_dir_path
-        ),
+            lib_tmp_dir_path=lib_tmp_dir_path),
         source_dir_path=self.binary_provider.get_source_dir_path())
     common.delete_if_exists(lib_tmp_dir_path)
     return ret_value, symbolized_output
@@ -734,6 +753,6 @@ class AndroidWebViewReproducer(AndroidChromeReproducer):
     android.adb_shell('start')
     android.uninstall(SYSTEM_WEBVIEW_PACKAGE)
     android.uninstall(self.testcase.android_package_name)
-    android.install(os.path.join(
-        os.path.dirname(self.binary_path), SYSTEM_WEBVIEW_APK))
+    android.install(
+        os.path.join(os.path.dirname(self.binary_path), SYSTEM_WEBVIEW_APK))
     android.install(self.binary_path)
