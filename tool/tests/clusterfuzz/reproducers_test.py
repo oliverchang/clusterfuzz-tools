@@ -358,7 +358,8 @@ class SetupArgsTest(helpers.ExtendedTestCase):
     self.provider.get_build_dir_path.return_value = '/chrome/source/folder'
     self.definition = mock.Mock()
     self.mock.update_for_gdb_if_needed.side_effect = (
-        lambda binary_path, args, timeout, should_enable_gdb: (binary_path, args, timeout)
+        lambda binary_path, args, timeout, should_enable_gdb:
+        (binary_path, args, timeout)
     )
     self.mock.edit_if_needed.side_effect = (
         lambda content, prefix, comment, should_edit: content)

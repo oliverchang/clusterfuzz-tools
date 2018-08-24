@@ -1,5 +1,6 @@
 dependencies:
   override:
+    - sudo apt-get update
     - sudo apt-get install libpython2.7-dev
     - ./pants -V
   cache_directories:
@@ -8,20 +9,22 @@ test:
   override:
     - ./pants run tool:pylint
     - ./pants binary tool:clusterfuzz-`cat tool/clusterfuzz/resources/VERSION`
-    - ./pants test.pytest --coverage=1 tool:test
+    # `-p no:logging` is needed as a temporary workaround. See:
+    # https://github.com/pantsbuild/pants/issues/5310
+    - ./pants test.pytest --coverage=auto tool:test -- -p no:logging
     - ./pants run shared:coveralls -- --output=coverage_tool.json
 
     - ./pants run error:pylint
-    - ./pants test.pytest --coverage=1 error:test
+    - ./pants test.pytest --coverage=auto error:test -- -p no:logging
     - ./pants run shared:coveralls -- --merge=coverage_tool.json --output=coverage_tool.json
 
     - ./pants run ci/continuous_integration:pylint
     - ./pants binary ci/continuous_integration:daemon
-    - ./pants test.pytest --coverage=1 ci/continuous_integration:test
+    - ./pants test.pytest --coverage=auto ci/continuous_integration:test -- -p no:logging
     - ./pants run shared:coveralls -- --merge=coverage_tool.json --output=coverage_tool.json
 
     - ./pants run cmd-editor:pylint
-    - ./pants test.pytest --coverage=1 cmd-editor:test
+    - ./pants test.pytest --coverage=auto cmd-editor:test -- -p no:logging
     - ./pants run shared:coveralls -- --merge=coverage_tool.json
 
     - ./pants run butler:pylint

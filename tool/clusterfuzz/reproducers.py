@@ -377,7 +377,7 @@ class BaseReproducer(object):
     # When running in regular mode, user would want to see screen, so
     # remove this argument.
     # TODO(tanin): refactor the condition to its own module function.
-    if (self.options.disable_xvfb and DISABLE_GL_DRAW_ARG in self.args):
+    if self.options.disable_xvfb and DISABLE_GL_DRAW_ARG in self.args:
       self.args = self.args.replace(' %s' % DISABLE_GL_DRAW_ARG, '')
       self.args = self.args.replace(DISABLE_GL_DRAW_ARG, '')
 
@@ -437,8 +437,8 @@ class BaseReproducer(object):
                 'The stacktrace seems similar to the original stacktrace.\n'
                 "Since you've reproduced the crash correctly, there are some "
                 'tricks that might help you move faster:\n'
-                '- In case of fixing the crash, you can use `--current` to run on '
-                'tip-of-tree (or, in other words, avoid git-checkout).\n'
+                '- In case of fixing the crash, you can use `--current` to run '
+                'on tip-of-tree (or, in other words, avoid git-checkout).\n'
                 '- You can save time by using `--skip-deps` to avoid '
                 '`gclient sync`, `gclient runhooks`, and other dependency '
                 'installations in subsequential runs.\n'
