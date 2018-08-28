@@ -179,7 +179,7 @@ def download_testcase(url):
   return os.path.join(tmp_dir_path, os.listdir(tmp_dir_path)[0])
 
 
-def create(testcase_json):
+def create(testcase_json, force=False):
   """Parse testcase json and instantiate a Testcase."""
   stacktrace_lines = testcase_json['crash_stacktrace']['lines']
 
@@ -199,7 +199,7 @@ def create(testcase_json):
   else:
     envs, reproduction_args = get_environment_and_args(stacktrace_lines)
 
-  if not reproduction_args:
+  if not reproduction_args and not force:
     reproduction_args = (
         '%s %s' % (testcase_json['testcase']['window_argument'],
                    testcase_json['testcase']['minimized_arguments'])).strip()

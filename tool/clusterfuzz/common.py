@@ -84,7 +84,7 @@ Options = namedlist.namedlist(
     'Options',
     ['testcase_id', 'current', 'build', 'disable_goma', 'goma_threads',
      'goma_load', 'iterations', 'disable_xvfb', 'target_args', 'edit_mode',
-     'skip_deps', 'enable_debug', 'extra_log_params']
+     'skip_deps', 'enable_debug', 'extra_log_params', 'force']
 )
 
 

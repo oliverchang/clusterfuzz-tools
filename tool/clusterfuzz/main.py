@@ -52,6 +52,9 @@ def execute(argv=None):
       '-j', '--goma-threads', action='store', default=None, type=int,
       help='Manually specify the number of concurrent jobs for a ninja build.')
   reproduce.add_argument(
+      '-f', '--force', action='store_true', default=False,
+      help='Try to repro an unreproducible testcase found by AFL or libFuzzer.')
+  reproduce.add_argument(
       '-l', '--goma-load', action='store', default=None, type=int,
       help='Manually specify maximum load average for a ninja build.')
   reproduce.add_argument(

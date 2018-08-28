@@ -59,7 +59,6 @@ class InitTest(helpers.ExtendedTestCase):
 
   def test_init(self):
     """Test init."""
-    print 'sdfdsf'
     error.MinimizationNotFinishedError()
     error.SanitizerNotProvidedError()
     error.ClusterFuzzError(500, 'resp', 'identity')

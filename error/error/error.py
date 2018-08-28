@@ -53,10 +53,13 @@ class MinimizationNotFinishedError(ExpectedException):
     stacktrace."""
 
   MESSAGE = (
-      "The testcase hasn't been minimized yet or cannot be minimized.\n"
+      'The testcase hasn\'t been minimized yet or cannot be minimized.\n'
       'If the testcase is new, please wait for a few more hours.\n'
-      "If we can't minimize the testcase, it means the testcase is "
-      'unreproducible and, thus, not supported by this tool.')
+      'If we can\'t minimize the testcase, it means the testcase is '
+      'unreproducible and, thus, not supported by this tool.\n'
+      'If this testcase was found by AFL or libFuzzer, you can use the "-f"'
+      'flag to force this tool to try to reproduce the testcase.'
+  )
   EXIT_CODE = 42
 
   def __init__(self):

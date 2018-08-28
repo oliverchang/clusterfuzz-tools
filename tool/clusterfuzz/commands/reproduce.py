@@ -117,7 +117,7 @@ def send_request(url, data):
   return response
 
 
-def get_testcase_and_identity(testcase_id):
+def get_testcase_and_identity(testcase_id, force=False):
   """Pulls testcase information from ClusterFuzz.
 
   Returns a dictionary with the JSON response if the
@@ -127,7 +127,7 @@ def get_testcase_and_identity(testcase_id):
   data = json.dumps({'testcaseId': testcase_id})
   try:
     resp = send_request(CLUSTERFUZZ_TESTCASE_INFO_URL, data)
-    return (testcase.create(json.loads(resp.text)),
+    return (testcase.create(json.loads(resp.text), force),
             resp.headers[CLUSTERFUZZ_AUTH_IDENTITY])
   except error.ClusterFuzzError as e:
     if e.status_code == 404:
@@ -260,7 +260,7 @@ def create_builder_class(build, definition):
 @stackdriver_logging.log
 def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
             iterations, disable_xvfb, target_args, edit_mode, skip_deps,
-            enable_debug, extra_log_params):
+            enable_debug, extra_log_params, force):
   """Execute the reproduce command."""
   options = common.Options(
       testcase_id=testcase_id,
@@ -275,14 +275,14 @@ def execute(testcase_id, current, build, disable_goma, goma_threads, goma_load,
       edit_mode=edit_mode,
       skip_deps=skip_deps,
       enable_debug=enable_debug,
-      extra_log_params=extra_log_params)
+      extra_log_params=extra_log_params, force=force)
 
   logger.info('Reproducing testcase %s', testcase_id)
   logger.debug('%s', str(options))
 
   common.ensure_important_dirs()
 
-  current_testcase, identity = get_testcase_and_identity(testcase_id)
+  current_testcase, identity = get_testcase_and_identity(testcase_id, force)
   extra_log_params['identity'] = identity
   extra_log_params['job_type'] = current_testcase.job_type
   extra_log_params['platform'] = current_testcase.platform

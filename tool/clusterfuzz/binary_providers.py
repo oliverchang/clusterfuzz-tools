@@ -276,7 +276,7 @@ def compute_goma_load(goma_load):
   return multiprocessing.cpu_count() * 2
 
 
-def get_binary_name(stacktrace):
+def get_binary_name(stacktrace, force=False):
   """Get the binary name from stacktrace lines."""
   prefix = 'Running command: '
   stacktrace_lines = [l['content'] for l in stacktrace]
@@ -285,6 +285,16 @@ def get_binary_name(stacktrace):
       l = l.replace(prefix, '').split(' ')
       binary_name = os.path.basename(l[0])
       return binary_name
+
+  if not force:
+    raise error.MinimizationNotFinishedError()
+
+  # Hack for afl and libFuzzer binaries.
+  engine_target_regex = r'.*/(?P<fuzz_target>.+\_fuzzer)'
+  matches = re.search(engine_target_regex,
+                      ''.join(l['content'] for l in stacktrace))
+  if matches:
+    return matches.groupdict()['fuzz_target']
 
   raise error.MinimizationNotFinishedError()
 
@@ -579,7 +589,7 @@ class LibfuzzerAndAflBuilder(ChromiumBuilder):
   @common.memoize
   def get_target_names(self):
     """Get the target name for libfuzzer or afl."""
-    return [get_binary_name(self.testcase.stacktrace_lines)]
+    return [get_binary_name(self.testcase.stacktrace_lines, self.options.force)]
 
   @common.memoize
   def get_binary_name(self):
