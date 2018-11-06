@@ -4,10 +4,14 @@ ClusterFuzz tools
 [![CircleCI](https://circleci.com/gh/google/clusterfuzz-tools/tree/master.svg?style=shield)](https://circleci.com/gh/google/clusterfuzz-tools/tree/master)
 [![Coverage Status](https://coveralls.io/repos/github/google/clusterfuzz-tools/badge.svg?branch=master)](https://coveralls.io/github/google/clusterfuzz-tools?branch=master)
 
-The tools supports various tasks (e.g. reproduce a crash locally)
+The tools support various tasks (e.g. reproduce a crash locally)
 needed by ClusterFuzz's users.
 
-Currently, it supports reproducing a crash locally. In the future, it will
+They can reproduce crashes found on Linux, Mac, and Android. 
+Follow the instructions on [Reproducing on Windows](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing_on_windows.md) to reproduce a crash found by libFuzzer on Windows.
+The issue filed by CLusterFuzz should have a link to the correct instructions on how to reproduce.
+
+Currently, the tools support reproducing a crash locally. In the future, they will
 support uploading a fuzzer, tailing fuzzer log, and uploading a testcase.
 
 
