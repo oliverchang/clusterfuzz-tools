@@ -138,7 +138,7 @@ class JobTypeNotSupportedError(ExpectedException):
   MESSAGE = (
       'Unfortunately, the job {job_type} is not yet supported.'
       'If you believe that the crash will occur on Linux as well, please go '
-      'to https://clusterfuzz.com/v2/upload-testcase?upload=true&testcaseId={testcase_id} '
+      'to https://clusterfuzz.com/upload-testcase?upload=true&testcaseId={testcase_id} '
       'and choose a corresponding Linux job type. Ask us for help at '
       'clusterfuzz-dev@chromium.org.')
   # pylint: enable=line-too-long
@@ -267,7 +267,7 @@ class InvalidTestcaseIdError(ExpectedException):
       'The testcase ID ({testcase_id}) is invalid.\n'
       "Please double-check if there's a typo.\n"
       'Also, can you access '
-      'https://clusterfuzz.com/v2/testcase-detail/{testcase_id} ?')
+      'https://clusterfuzz.com/testcase-detail/{testcase_id} ?')
   EXIT_CODE = 56
 
   def __init__(self, testcase_id):
@@ -281,7 +281,7 @@ class UnauthorizedError(ExpectedException):
   MESSAGE = (
       "You ({identity}) aren't allowed to access the testcase ID "
       '({testcase_id}). Can you access '
-      'https://clusterfuzz.com/v2/testcase-detail/{testcase_id} ?')
+      'https://clusterfuzz.com/testcase-detail/{testcase_id} ?')
   EXIT_CODE = 57
 
   def __init__(self, testcase_id, identity):

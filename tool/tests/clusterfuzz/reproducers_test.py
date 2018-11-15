@@ -1093,7 +1093,7 @@ class GetCrashSignatureTest(helpers.ExtendedTestCase):
         common.CrashSignature('original_type', ['original', 'state']),
         reproducers.get_crash_signature('job', 'raw_stacktrace'))
     self.mock.post.assert_called_once_with(
-        url='https://clusterfuzz.com/v2/parse_stacktrace',
+        url='https://clusterfuzz.com/parse_stacktrace',
         data=json.dumps({
             'job': 'job',
             'stacktrace': 'raw_stacktrace'

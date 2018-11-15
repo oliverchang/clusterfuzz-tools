@@ -147,7 +147,7 @@ def load_new_testcases():
   supported_jobtypes = get_supported_jobtypes()
 
   while len(testcases) < 20 and page < 100:
-    r = post('https://clusterfuzz.com/v2/testcases/load',
+    r = post('https://clusterfuzz.com/testcases/load',
              headers={'Authorization': auth_header},
              json={
                  'page': page,

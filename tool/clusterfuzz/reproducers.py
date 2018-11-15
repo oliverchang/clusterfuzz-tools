@@ -184,7 +184,7 @@ def update_for_gdb_if_needed(binary_path, args, timeout, should_enable_gdb):
 def get_crash_signature(job_type, raw_stacktrace):
   """Get crash signature from raw_stacktrace by asking ClusterFuzz."""
   response = common.post(
-      url='https://clusterfuzz.com/v2/parse_stacktrace',
+      url='https://clusterfuzz.com/parse_stacktrace',
       data=json.dumps({
           'job': job_type,
           'stacktrace': raw_stacktrace

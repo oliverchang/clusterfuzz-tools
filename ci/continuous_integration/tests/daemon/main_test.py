@@ -215,7 +215,7 @@ class LoadNewTestcasesTest(helpers.ExtendedTestCase):
         result)
     self.assert_exact_calls(self.mock.post, [
         mock.call(
-            'https://clusterfuzz.com/v2/testcases/load',
+            'https://clusterfuzz.com/testcases/load',
             headers={'Authorization': 'Bearer xyzabc'},
             json={'page': page, 'reproducible': 'yes',
                   'q': 'platform:linux', 'open': 'yes',
