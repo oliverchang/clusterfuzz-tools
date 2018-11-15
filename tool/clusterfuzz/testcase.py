@@ -24,7 +24,7 @@ from clusterfuzz import common
 
 
 CLUSTERFUZZ_TESTCASE_URL = (
-    'https://%s/v2/testcase-detail/download-testcase?id=%s' %
+    'https://%s/testcase-detail/download-testcase?id=%s' %
     (common.DOMAIN_NAME, '%s'))
 DOWNLOAD_TIMEOUT = 100
 TESTCASE_CACHE_TTL = 6 * 60 * 60  # The testcase file is cached for 6 hours.

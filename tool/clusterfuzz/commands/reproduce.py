@@ -34,7 +34,7 @@ from error import error
 CLUSTERFUZZ_AUTH_HEADER = 'x-clusterfuzz-authorization'
 CLUSTERFUZZ_AUTH_IDENTITY = 'x-clusterfuzz-identity'
 CLUSTERFUZZ_TESTCASE_INFO_URL = (
-    'https://%s/v2/testcase-detail/refresh' % common.DOMAIN_NAME)
+    'https://%s/testcase-detail/refresh' % common.DOMAIN_NAME)
 GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth?%s' % (
     urllib.urlencode({
         'scope': 'email profile',
