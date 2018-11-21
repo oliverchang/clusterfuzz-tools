@@ -7,7 +7,7 @@ ClusterFuzz tools
 The tools support various tasks (e.g. reproduce a crash locally)
 needed by ClusterFuzz's users.
 
-They can reproduce crashes found on Linux, Mac, and Android. 
+They can reproduce crashes found on Linux and Android. 
 Follow the instructions on [Reproducing on Windows](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing_on_windows.md) to reproduce a crash found by libFuzzer on Windows.
 The issue filed by CLusterFuzz should have a link to the correct instructions on how to reproduce.
 
