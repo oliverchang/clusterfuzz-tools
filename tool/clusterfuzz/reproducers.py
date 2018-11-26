@@ -73,13 +73,20 @@ def get_only_first_stacktrace(lines):
   """Get the first stacktrace because multiple stacktraces would make stacktrace
     parsing wrong."""
   new_lines = []
+  found_first_stack = False
   for line in lines:
     line = line.rstrip()
-    if line.startswith('+----') and new_lines:
-      break
+    if line.startswith('+----'):
+      if found_first_stack:
+        # This is the second stack, ignore everything from now on.
+        break
+
+      found_first_stack = True
+
     # We don't add the empty lines in the beginning.
     if new_lines or line:
       new_lines.append(line)
+
   return new_lines
 
 
