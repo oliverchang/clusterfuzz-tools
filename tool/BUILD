@@ -33,9 +33,16 @@ python_library(
         '//3rdparty/python:xvfbwrapper',
         '//cmd-editor:src',
         '//error:src',
+        ':resources',
     ],
-    resources=rglobs('clusterfuzz/resources/*'),
     compatibility=['>=2.7','<3'],
+)
+
+
+resources(
+    name='resources',
+    description='Files included in the bundled application',
+    sources=rglobs('clusterfuzz/resources/*')
 )
 
 
