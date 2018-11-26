@@ -90,7 +90,8 @@ def make_options(
     edit_mode=False,
     skip_deps=False,
     enable_debug=False,
-    extra_log_params=None):
+    extra_log_params=None,
+    force=False):
   """Make an option."""
   extra_log_params = extra_log_params or {}
   return common.Options(
@@ -106,4 +107,5 @@ def make_options(
       edit_mode=edit_mode,
       skip_deps=skip_deps,
       enable_debug=enable_debug,
-      extra_log_params=extra_log_params)
+      extra_log_params=extra_log_params,
+      force=force)

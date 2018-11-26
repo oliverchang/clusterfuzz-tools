@@ -54,8 +54,8 @@ Develop
 ------------
 
 1. `./pants -V` to bootstrap [Pants](http://www.pantsbuild.org/).
-2. Run the tool's tests: `./pants test.pytest --coverage=1 tool:test`.
-3. Run the ci's tests: `./pants test.pytest --coverage=1 ci/continuous_integration:test`.
+2. Run the tool's tests: `./pants test.pytest --coverage=auto tool:test -- -p no:logging`.
+3. Run the ci's tests: `./pants test.pytest --coverage=auto ci/continuous_integration:test -- -p no:logging`.
 4. Run the tool binary: `./pants run tool:clusterfuzz-ci -- reproduce -h`.
 
 

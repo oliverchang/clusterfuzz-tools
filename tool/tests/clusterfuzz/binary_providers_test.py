@@ -1005,12 +1005,12 @@ class LibfuzzerAndAflBuilderTest(helpers.ExtendedTestCase):
   def test_get_target_names(self):
     """Test get_target_names."""
     self.assertEqual(['target'], self.builder.get_target_names())
-    self.mock.get_binary_name.assert_called_once_with('trace')
+    self.mock.get_binary_name.assert_called_once_with('trace', False)
 
   def test_get_binary_name(self):
     """Test get_binary_name."""
     self.assertEqual('target', self.builder.get_binary_name())
-    self.mock.get_binary_name.assert_called_once_with('trace')
+    self.mock.get_binary_name.assert_called_once_with('trace', False)
 
 
 class GetBinaryNameTest(helpers.ExtendedTestCase):

@@ -95,7 +95,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase_and_identity.assert_called_once_with(
-        self.testcase.id)
+        self.testcase.id, False)
     self.builder.assert_called_once_with(
         testcase=self.testcase, definition=self.definition,
         options=self.options)
@@ -114,7 +114,7 @@ class ExecuteTest(helpers.ExtendedTestCase):
     reproduce.execute(**vars(self.options))
 
     self.mock.get_testcase_and_identity.assert_called_once_with(
-        self.testcase.id)
+        self.testcase.id, False)
     self.builder.assert_called_once_with(
         testcase=self.testcase,
         definition=self.definition,

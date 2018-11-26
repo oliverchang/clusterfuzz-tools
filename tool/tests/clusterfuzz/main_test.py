@@ -43,10 +43,11 @@ class MainTest(unittest.TestCase):
         mock.call(build=None, current=False, disable_goma=False,
                   goma_threads=None, testcase_id='1234', iterations=3,
                   disable_xvfb=False, target_args='', edit_mode=False,
-                  skip_deps=False, enable_debug=False, goma_load=None),
+                  skip_deps=False, enable_debug=False, goma_load=None,
+                  force=False),
         mock.call(build='chromium', current=True, disable_goma=True,
                   goma_threads=25, testcase_id='1234', iterations=500,
                   disable_xvfb=True, target_args='--test --test2',
                   edit_mode=True, skip_deps=True, enable_debug=True,
-                  goma_load=20),
+                  goma_load=20, force=False),
     ])
