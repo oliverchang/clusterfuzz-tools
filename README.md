@@ -1,18 +1,18 @@
-ClusterFuzz tools
+ClusterFuzz Reproduce Tool
 =================================
 
-[![CircleCI](https://circleci.com/gh/google/clusterfuzz-tools/tree/master.svg?style=shield)](https://circleci.com/gh/google/clusterfuzz-tools/tree/master)
-[![Coverage Status](https://coveralls.io/repos/github/google/clusterfuzz-tools/badge.svg?branch=master)](https://coveralls.io/github/google/clusterfuzz-tools?branch=master)
+The reproduce tool helps you to reproduce a crash locally that is found by ClusterFuzz infrastructure.
 
-The tools support various tasks (e.g. reproduce a crash locally)
-needed by ClusterFuzz's users.
+Currently the reproduce tool is supported on:
+* Plaforms: **Linux**, **Mac** and **Android**.
+    * For reproducing crashes on **Windows**:
+        * For `libFuzzer` and `AFL` testcases, please use the manual instructions [here](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing_on_windows.md).
+        * For others, use the testcase report page to download the testcase and then use the command-line and
+environment options provided in stacktrace section to run the testcase against target 
+(e.g. chrome, content_shell, d8, etc).
 
-They can reproduce crashes found on Linux and Android. 
-Follow the instructions on [Reproducing on Windows](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing_on_windows.md) to reproduce a crash found by libFuzzer on Windows.
-The issue filed by ClusterFuzz should have a link to the correct instructions on how to reproduce.
-
-Currently, the tools support reproducing a crash locally. In the future, they will
-support uploading a fuzzer, tailing fuzzer log, and uploading a testcase.
+* Sanitizers: **ASan**, **LSan**, **TSan**, **UBSan**.
+    * For reproducing crashes found with **MSan**, please use the manual instructions [here](https://www.chromium.org/developers/testing/memorysanitizer#TOC-Running-on-other-distros-using-Docker).
 
 
 Requirements
@@ -33,7 +33,6 @@ For Goobuntu:
 
 1. Run `prodaccess`.
 2. Run `/google/data/ro/teams/clusterfuzz-tools/releases/clusterfuzz reproduce -h`.
-3. Run the release candidate version `/google/data/ro/teams/clusterfuzz-tools/releases/clusterfuzz-rc reproduce -h`. The release candidate version normally has newer features and updates.
 
 For others:
 
@@ -44,9 +43,9 @@ For others:
 Usage
 ------
 
-See `<binary> reproduce --help`. Run `<binary> reproduce [testcase-id]`.
+See `<binary> reproduce --help`. Run it using `<binary> reproduce [testcase-id]`.
 
-Here's the workflow (we think) might be appropriate when fixing a bug:
+Here's the recommended workflow for fixing a bug:
 
 1. Run `<binary> reproduce [testcase-id]`.
 2. Make a new branch and make a code change.
