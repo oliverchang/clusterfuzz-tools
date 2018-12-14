@@ -4,9 +4,9 @@ ClusterFuzz Reproduce Tool
 The reproduce tool helps you to reproduce a crash locally that is found by ClusterFuzz infrastructure.
 
 Currently the reproduce tool is supported on:
-* Plaforms: **Linux**, **Mac** and **Android**.
-    * For reproducing crashes on **Windows**:
-        * For `libFuzzer` and `AFL` testcases, please use the manual instructions [here](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing_on_windows.md).
+* Plaforms: **Linux** and **Android**.
+    * For reproducing crashes on **Windows** and **Mac**:
+        * For `libFuzzer` and `AFL` testcases, please use the manual instructions [here](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing.md).
         * For others, use the testcase report page to download the testcase and then use the command-line and
 environment options provided in stacktrace section to run the testcase against target 
 (e.g. chrome, content_shell, d8, etc).
