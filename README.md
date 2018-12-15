@@ -4,15 +4,17 @@ ClusterFuzz Reproduce Tool
 The reproduce tool helps you to reproduce a crash locally that is found by ClusterFuzz infrastructure.
 
 Currently the reproduce tool is supported on:
-* Plaforms: **Linux** and **Android**.
+* Plaforms: **Linux** and **Android** only.
     * For reproducing crashes on **Windows** and **Mac**:
         * For `libFuzzer` and `AFL` testcases, please use the manual instructions [here](https://chromium.googlesource.com/chromium/src/+/master/testing/libfuzzer/reproducing.md).
-        * For others, use the testcase report page to download the testcase and then use the command-line and
-environment options provided in stacktrace section to run the testcase against target 
-(e.g. chrome, content_shell, d8, etc).
+        * For others, please use the testcase report page to download the testcase first and
+then use the command-line and environment options provided in the `crash stacktrace` section
+to run the testcase against the target (e.g. chrome, content_shell, d8, etc).
 
-* Sanitizers: **ASan**, **LSan**, **TSan**, **UBSan**.
-    * For reproducing crashes found with **MSan**, please use the manual instructions [here](https://www.chromium.org/developers/testing/memorysanitizer#TOC-Running-on-other-distros-using-Docker).
+* Sanitizers: **ASan**, **LSan**, **TSan** and **UBSan** only.
+    * For reproducing crashes found with **MSan**:
+         * Follow the same manual steps cited for **Windows** and **Mac** above.
+         * To run the target, please use the manual instructions provided [here](https://www.chromium.org/developers/testing/memorysanitizer#TOC-Running-on-other-distros-using-Docker).
 
 
 Requirements
