@@ -75,8 +75,11 @@ standalone:
         linux_cfi_d8: { preset: d8_standalone, builder: CfiV8, sanitizer: CFI }
 chromium:
         afl_chrome_asan: { preset: afl, sanitizer: ASAN }
+        chromeos_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
+        x86_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
+        x86_libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_msan: { preset: libfuzzer, builder: LibfuzzerMsanChromium, sanitizer: MSAN }
         libfuzzer_chrome_ubsan: { preset: libfuzzer, sanitizer: UBSAN }
         linux_asan_chrome_chromeos: { preset: linux_asan_chromium }
