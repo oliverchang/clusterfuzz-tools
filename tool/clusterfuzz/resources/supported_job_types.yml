@@ -78,11 +78,11 @@ chromium:
         chromeos_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         x86_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
-        arm_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
-        arm64_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
+        arm_sim_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
+        arm64_sim_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
-        arm_libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
-        arm64_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
+        arm_sim_libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
+        arm64_sim_libfuzzer_chrome_asan: { preset: libfuzzer, sanitizer: ASAN }
         x86_libfuzzer_chrome_asan_debug: { preset: libfuzzer, sanitizer: ASAN }
         libfuzzer_chrome_msan: { preset: libfuzzer, builder: LibfuzzerMsanChromium, sanitizer: MSAN }
         libfuzzer_chrome_ubsan: { preset: libfuzzer, sanitizer: UBSAN }
